@@ -7,7 +7,7 @@
  * a WiFi module, motor controllers, sensors, and PID controllers for stability. The configuration includes
  * network settings for retrieving joystick data, motor control via ESCs, and sensor data processing
  * with Kalman and complementary filters.
- *
+ *?
  * Dependencies:
  * - Arduino.h: Core Arduino library.
  * - WiFi.h: Handles WiFi operations.
@@ -61,6 +61,15 @@
  *
  * @note Ensure that all external libraries are correctly installed and the hardware is properly connected as per the specified pin assignments and configurations.
  */
+
+/*
+* TODO: Remove MPU6050 and replace with MPU6000
+* TODO: Add magnetometer and barometer measurements
+* TODO: Replace KalmanFilter with MadgewickFilter
+* TODO: Add PID for yaw and altitude
+* TODO: Update documentation
+*/
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
