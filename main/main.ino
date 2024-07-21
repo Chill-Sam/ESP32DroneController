@@ -65,7 +65,7 @@
 /*
 * TODO: Remove MPU6050 and replace with MPU6000
 * TODO: Add magnetometer and barometer measurements
-* TODO: Replace KalmanFilter with MadgewickFilter
+* TODO: Replace KalmanFilter/Complementary with MahonyFilter
 * TODO: Add PID for yaw and altitude
 * TODO: Update documentation
 */
