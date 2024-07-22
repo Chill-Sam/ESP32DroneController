@@ -2,6 +2,7 @@
 * TODO: Finalize sensor fusion
 * TODO: Add barometer sensor handling
 * TODO: Add PIDs for altitude and yaw 
+* TODO: Turn joystick input into pitch, roll, yaw and altitude setpoints
 * TODO: Add documentation
 */
 
@@ -61,9 +62,17 @@ float droneRoll = 0;
 float droneYaw = 0;
 float droneAltitude = 0; // NOTE: This is relative altitude
 
-PIDController pidPitch, pidRoll;
-double Kp = 0.7, Ki = 0.7, Kd = 0.3; // Initial PID parameters, need tuning
+// NOTE: IMPORTANT: NEEDS TO BE TUNED BEFORE FLYING
+PIDController pidPitch, pidRoll, pidYaw, pidAlt;
+double pitchKp = 0.7, pitchKi = 0.7, pitchKd;
+double rollKp = 0.7, rollKi = 0.7, rollKd;
+double yawKp = 0.7, yawKi = 0.7, yawKd;
+double altKp = 0.7, altKi = 0.7, altKd;
+double pitchSetPoint, rollSetPoint, yawSetPoint, altSetPoint = 0;
+double maxPitch, maxRoll, maxYaw = 15;
+double maxAlt = 1;
 
+// NOTE: Needs to be tuned properly
 int liftOffValue = 10;
 
 void decodeJson(String payload) {
@@ -183,6 +192,24 @@ void setup()
   Serial.println("System Online");
 
   mpu.initializeMPU();
+
+  // Initialize HMC5883L
+  if (!mag.begin()) {
+    Serial.println("HMC5883L not detected");
+    while (1);
+  }
+
+  // Initialize BMP310
+  if (!bmp.begin_I2C()) { // Default I2C address is 0x76
+    Serial.println("BMP310 not detected");
+    while (1);
+  }
+
+  // Set up BMP310 sensor settings
+  bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
+  bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
+  bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
+  bmp.setOutputDataRate(BMP3_ODR_50_HZ);
 
   connection.connectToWifi();
   connection.connectToWebsite();
