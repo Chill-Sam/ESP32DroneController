@@ -1,3 +1,10 @@
+/* 
+* TODO: Finalize sensor fusion
+* TODO: Add barometer sensor handling
+* TODO: Add PIDs for altitude and yaw 
+* TODO: Add documentation
+*/
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -59,7 +66,6 @@ double Kp = 0.7, Ki = 0.7, Kd = 0.3; // Initial PID parameters, need tuning
 
 int liftOffValue = 10;
 
-// TODO: Add documentation
 void decodeJson(String payload) {
     StaticJsonDocument<256> doc;  // Adjust size based on JSON complexity
 
@@ -78,7 +84,6 @@ void decodeJson(String payload) {
     isON         = doc["Values"]["Switch"];                // State of the switch
 }
 
-// TODO: Add documentation
 void setMotorThrottleManual() {
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
@@ -96,8 +101,6 @@ void setMotorThrottleManual() {
   }
 }
 
-// TODO: Add documentation
-// TODO: Remake calculateAngles function for 9DoF
 // NOTE: Using mahony filter for drone sensor fusion
 void calculateAngles() {
     std::array<float, 6> data = mpu.getData();  // Update sensor readings from MPU6000
@@ -110,8 +113,6 @@ void calculateAngles() {
     float gyroZ = data[5];
 }
 
-// TODO: Add documentation
-// TODO: Add pids for altitude and yaw
 void pidControl() {
   // Initialize PID controllers for pitch and roll
   pidPitch.begin();
