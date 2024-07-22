@@ -186,6 +186,12 @@ void setPID(){
 }
 
 
+float pressureToAltitude(float pressure) {
+  const float P0 = 101325.0; // Standard atmospheric pressure at sea level in Pa
+  return 44330.0 * (1.0 - pow(pressure / P0, 0.1903));
+}
+
+
 void setup()
 {
   Serial.begin(115200);
