@@ -1,9 +1,9 @@
 /* 
-* TODO: Finalize sensor fusion
-* TODO: Add barometer sensor handling
-* TODO: Add PIDs for altitude and yaw 
+* TODO: Check all sensor handling works on hardware
+* TODO: Physically test PIDs and tune them
 * TODO: Turn joystick input into pitch, roll, yaw and altitude setpoints
 * TODO: Add documentation
+* TODO: Realworld test
 */
 
 #include <Arduino.h>
@@ -120,31 +120,82 @@ void calculateAngles() {
     float gyroX = data[3];
     float gyroY = data[4];
     float gyroZ = data[5];
+
+    // Read HMC5883L data
+    sensors_event_t event;
+    mag.getEvent(&event);
+    float magX = event.magnetic.x;
+    float magY = event.magnetic.y;
+    float magZ = event.magnetic.z;
+
+
+    // Update the filter
+    filter.update(gyroX, gyroY, gyroZ, accelX, accelY, accelZ, magX, magY, magZ);
+
+    // Get orientation in terms of pitch, roll, and yaw
+    dronePitch = filter.getPitch();
+    droneRoll = filter.getRoll();
+    droneYaw = filter.getYaw();
+
+    // Read BMP310 data
+    if (!bmp.performReading()) {
+      Serial.println("Failed to perform reading from BMP310");
+      return;
+    } 
+
+    // float temperature = bmp.temperature; // Not necessary
+    float pressure = bmp.pressure;
+
+    // Convert pressure to altitude
+    droneAltitude = pressureToAltitude(pressure);
 }
 
 void pidControl() {
+  // NOTE: NEEDS TO BE TUNED AND TESTED BEFORE FULL USAGE
+  
+  float MAX_PID = 10.0;
+  float MIN_PID = -10.0;
+
   // Initialize PID controllers for pitch and roll
   pidPitch.begin();
-  pidPitch.setpoint(0); // Desired pitch setpoint
-  pidPitch.tune(Kp, Ki, Kd);
-  pidPitch.limit(-10, 10); // Set output limits for pitch
+  pidPitch.setpoint(pitchSetPoint); // Desired pitch setpoint
+  pidPitch.tune(pitchKp, pitchKi, pitchKd);
+  pidPitch.limit(MIN_PID, MAX_PID); // Set output limits for pitch
 
   pidRoll.begin();
-  pidRoll.setpoint(0); // Desired roll setpoint
-  pidRoll.tune(Kp, Ki, Kd);
-  pidRoll.limit(-10, 10); // Set output limits for roll
+  pidRoll.setpoint(rollSetPoint); // Desired roll setpoint
+  pidRoll.tune(rollKp, rollKi, rollKd);
+  pidRoll.limit(MIN_PID, MAX_PID); // Set output limits for roll
+
+  pidYaw.begin();
+  pidYaw.setpoint(yawSetPoint); // Desired yaw setpoint
+  pidYaw.tune(yawKp, yawKi, yawKd);
+  pidYaw.limit(MIN_PID, MAX_PID); // Set output limits for yaws
+
+  pidAlt.begin();
+  pidAlt.setpoint(altSetPoint);
+  pidAlt.tune(altKp, altKi, altKd);
+  pidAlt.limit(MIN_PID, MAX_PID);
 
   // Compute PID control outputs
   float outputPitch = pidPitch.compute(dronePitch);
   float outputRoll = pidRoll.compute(droneRoll);
+  float outputYaw = pidYaw.compute(droneYaw);
+  float outputAlt = pidAlt.compute(droneAlt);
 
   // Print the control outputs for debugging
   Serial.print("outputPitch: ");
   Serial.println(outputPitch);
   Serial.print("outputRoll: ");
   Serial.println(outputRoll);
+  Serial.print("outputYaw: ");
+  Serial.println(outputYaw);
+  Serial.print("outputAlt: ");
+  Serial.println(outputAlt);
 
   // Set engine speeds based on PID outputs, ensuring values are within 0-100 range
+
+  // NOTE: IMPORTANT, NEED TO ADD outputYaw and outputAlt. NEED TO CHECK HARDWARE AND UPDATE
   controller.setEngineSpeed(1, constrain(liftOffValue + outputPitch - outputRoll, 0, 100));
   controller.setEngineSpeed(2, constrain(liftOffValue - outputPitch - outputRoll, 0, 100));
   controller.setEngineSpeed(3, constrain(liftOffValue + outputPitch + outputRoll, 0, 100));
