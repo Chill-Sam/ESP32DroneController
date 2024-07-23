@@ -1,7 +1,6 @@
 /* 
 * TODO: Check all sensor handling works on hardware
 * TODO: Physically test PIDs and tune them
-* TODO: Turn joystick input into pitch, roll, yaw and altitude setpoints
 * TODO: Add documentation
 * TODO: Realworld test
 */
@@ -43,6 +42,8 @@ StaticJsonDocument<1024> doc;
 float joystick1[2], joystick2[2];
 bool isON;
 
+unsigned long previousTime = 0;
+
 // ESC control settings
 std::array<const int, 4> escPins = {16, 17, 18, 19};
 const int frequency = 50;
@@ -64,10 +65,10 @@ float droneAltitude = 0; // NOTE: This is relative altitude
 
 // NOTE: IMPORTANT: NEEDS TO BE TUNED BEFORE FLYING
 PIDController pidPitch, pidRoll, pidYaw, pidAlt;
-double pitchKp = 0.7, pitchKi = 0.7, pitchKd;
-double rollKp = 0.7, rollKi = 0.7, rollKd;
-double yawKp = 0.7, yawKi = 0.7, yawKd;
-double altKp = 0.7, altKi = 0.7, altKd;
+double pitchKp = 0.7, pitchKi = 0.7, pitchKd = 0.1;
+double rollKp = 0.7, rollKi = 0.7, rollKd = 0.1;
+double yawKp = 0.7, yawKi = 0.7, yawKd = 0.1;
+double altKp = 0.7, altKi = 0.7, altKd = 0.1;
 double pitchSetPoint, rollSetPoint, yawSetPoint, altSetPoint = 0;
 double maxPitch, maxRoll, maxYaw = 15;
 double maxAlt = 1;
@@ -243,6 +244,28 @@ float pressureToAltitude(float pressure) {
 }
 
 
+void updateSetpoints() {
+  // NOTE: ADJUST VALUES FOR REALITY
+  float MAX_PITCH_ANGLE = 15.0;
+  float MAX_ROLL_ANGLE = 15.0;
+  float YAW_COEFFICIENT = 10.0;
+  float ALT_COEFFICIENT = 0.1; 
+
+  pitchSetPoint = joystick1[1] * MAX_PITCH_ANGLE;
+  rollSetPoint = joystick1[0] * MAX_ROLL_RATE;
+
+  unsigned long currentTime = millis();  // Get the current time
+  double dt = (currentTime - previousTime) / 1000;
+
+  if (dt > 0) {
+    altSetPoint += joystick2[1] * ALT_COEFFICIENT * dt;
+    yawSetPoint += joystick2[0] * YAW_COEFFICIENT * dt;
+
+    previousTime = currentTime;
+  }
+}
+
+
 void setup()
 {
   Serial.begin(115200);
@@ -283,6 +306,7 @@ void loop()
 
   if (isON) {
     calculateAngles();
+    updateSetpoints();
     setPID();
     pidControl();
     // setMotorThrottleManual();
