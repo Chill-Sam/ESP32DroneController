@@ -204,6 +204,7 @@ void pidControl() {
 }
 
 // NOTE: Made for one time tuning use.
+// NOTE: Replace pitchKp/i/d with others to tune them.
 void setPID(){
     // Check if there is incoming serial data
     if (Serial.available() > 0) {
@@ -218,16 +219,16 @@ void setPID(){
 
         // Set the corresponding PID parameter based on the index
         if (value == 0){
-          Kp = value2;
-          Serial.println("Set p value to "+String(Kp));
+          pitchKp = value2;
+          Serial.println("Set p value to "+String(pitchKp));
         }
         else if (value == 1){
-          Ki = value2;
-          Serial.println("Set i value to "+String(Ki));
+          pitchKi = value2;
+          Serial.println("Set i value to "+String(pitchKi));
         }
         else if (value == 2){
-          Kd = value2;
-          Serial.println("Set d value to "+String(Kd));
+          pitchKd = value2;
+          Serial.println("Set d value to "+String(pitchKd));
         }
         else if (value == 3 ){
           liftOffValue = value2;
