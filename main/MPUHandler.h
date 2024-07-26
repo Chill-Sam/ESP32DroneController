@@ -30,10 +30,10 @@
 #include <cstdint>
 
 // Define the pin numbers for the MPU6000 connection
-#define MPU6000_CS_PIN 29    ///< Chip Select pin
-#define MPU6000_SCK_PIN 30   ///< Serial Clock pin
-#define MPU6000_MISO_PIN 31  ///< Master In Slave Out pin
-#define MPU6000_MOSI_PIN 37  ///< Master Out Slave In pin
+#define VSPI_CS_PIN 5    ///< Chip Select pin
+#define VSPI_SCK_PIN 18  ///< Serial Clock pin
+#define VSPI_SDI_PIN 19  ///< Serial Data In pin
+#define VSPI_SDO_PIN 23  ///< Serial Data Out pin
 
 // Define MPU6000 I2C address and register addresses
 #define MPU6000_ADDRESS 0x68   ///< MPU6000 I2C address
@@ -73,10 +73,10 @@ public:
      * Sets up I2C and SPI communication and configures the sensor.
      */
     void initializeMPU() {
-        Wire.begin();  ///< Initialize I2C communication
-        SPI.begin(MPU6000_SCK_PIN, MPU6000_MISO_PIN, MPU6000_MOSI_PIN, MPU6000_CS_PIN);  ///< Initialize SPI communication
-        pinMode(MPU6000_CS_PIN, OUTPUT);  ///< Set Chip Select pin as output
-        digitalWrite(MPU6000_CS_PIN, HIGH);  ///< Set Chip Select pin high (inactive)
+        Wire.begin();  ///< Initialize SPI communication
+        SPI.begin(VSPI_SCK_PIN, VSPI_SDI_PIN, VSPI_SDO_PIN, VSPI_CS_PIN);  ///< Initialize SPI communication
+        pinMode(VSPI_CS_PIN, OUTPUT);  ///< Set Chip Select pin as output
+        digitalWrite(VSPI_CS_PIN, HIGH);  ///< Set Chip Select pin high (inactive)
         writeRegister(MPU6000_ADDRESS, PWR_MGMT_1, 0x00);  ///< Wake up the MPU6000 by writing 0 to the power management register
     }
 
@@ -115,24 +115,24 @@ private:
      * @param data The data byte to write to the register.
      */
     void writeRegister(uint8_t address, uint8_t reg, uint8_t data) {
-        digitalWrite(MPU6000_CS_PIN, LOW);  ///< Activate the MPU6000
+        digitalWrite(VSPI_CS_PIN, LOW);  ///< Activate the MPU6000
         SPI.transfer(reg);  ///< Send register address
         SPI.transfer(data);  ///< Send data
-        digitalWrite(MPU6000_CS_PIN, HIGH);  ///< Deactivate the MPU6000
+        digitalWrite(VSPI_CS_PIN, HIGH);  ///< Deactivate the MPU6000
     }
 
     /**
      * @brief Reads a 16-bit value from a specific register of the MPU6000.
      *
-     * @param address The I2C address of the MPU6000.
+     * @param address The SPI address of the MPU6000.
      * @param reg The register address to read from.
      * @return The 16-bit value read from the register.
      */
     int16_t readRegister16(uint8_t address, uint8_t reg) {
-        digitalWrite(MPU6000_CS_PIN, LOW);  ///< Activate the MPU6000
+        digitalWrite(VSPI_CS_PIN, LOW);  ///< Activate the MPU6000
         SPI.transfer(reg | 0x80);  ///< Send register address with read flag
         int16_t value = SPI.transfer(0x00) << 8 | SPI.transfer(0x00);  ///< Read high and low bytes
-        digitalWrite(MPU6000_CS_PIN, HIGH);  ///< Deactivate the MPU6000
+        digitalWrite(VSPI_CS_PIN, HIGH);  ///< Deactivate the MPU6000
         return value;  ///< Return the 16-bit value
     }
 };
