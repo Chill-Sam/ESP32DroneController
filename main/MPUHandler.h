@@ -37,8 +37,6 @@
 #define VSPI_SDI_PIN 19  ///< Serial Data In pin
 #define VSPI_SDO_PIN 23  ///< Serial Data Out pin
 
-#define MPU6000_ADDRESS 0x68   ///< MPU6000 I2C address
-
 // Define MPU6000 register addresses
 #define ACCEL_XOUT_H 0x3B      ///< Accelerometer X-axis high byte
 #define ACCEL_XOUT_L 0x3C      ///< Accelerometer X-axis low byte
