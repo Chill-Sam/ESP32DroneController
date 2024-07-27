@@ -25,7 +25,6 @@
  * ```
  */
 
-#include <Wire.h>
 #include <SPI.h>
 #include <array>
 #include <cstdint>
