@@ -61,6 +61,10 @@
 #define ACCEL_SENSITIVITY 16384.0    ///< Accelerometer sensitivity (LSB/g)
 #define GYRO_SENSITIVITY 131.0       ///< Gyroscope sensitivity (LSB/(deg/s))
 
+// Variables to store offsets
+float accelXOffset = 0, accelYOffset = 0, accelZOffset = 0;
+float gyroXOffset = 0, gyroYOffset = 0, gyroZOffset = 0;
+
 SPIClass vspi(VSPI);  ///< Create an SPIClass instance for VSPI
 
 /**
@@ -75,6 +79,7 @@ SPIClass vspi(VSPI);  ///< Create an SPIClass instance for VSPI
  * Features:
  * - Initialize the MPU6000 sensor.
  * - Read accelerometer and gyroscope data.
+ * - Calculate and apply offsets for more accurate readings.
  *
  * @note The device must support I2C and SPI communication.
  */
@@ -129,41 +134,74 @@ public:
     // Get AccelX Data
     uint8_t accelX_H = readRegister(ACCEL_XOUT_H); // Get high bits
     uint8_t accelX_L = readRegister(ACCEL_XOUT_L); // Get low bits
-    int16_t accelX = (accelX_H << 8) | accelX_L; // Combine
+    int16_t accelX = ((accelX_H << 8) | accelX_L) - accelXOffset; // Combine
     float accelX_mps2 = (accelX / ACCEL_SENSITIVITY) * GRAVITY; // Convert to m/s^2
     
     // Get AccelY Data
     uint8_t accelY_H = readRegister(ACCEL_YOUT_H); // Get high bits
     uint8_t accelY_L = readRegister(ACCEL_YOUT_L); // Get low bits
-    int16_t accelY = (accelY_H << 8) | accelY_L; // Combine
+    int16_t accelY = ((accelY_H << 8) | accelY_L) - accelYOffset; // Combine
     float accelY_mps2 = (accelY / ACCEL_SENSITIVITY) * GRAVITY; // Convert to m/s^2
     
     // Get AccelZ Data
     uint8_t accelZ_H = readRegister(ACCEL_ZOUT_H); // Get high bits
     uint8_t accelZ_L = readRegister(ACCEL_ZOUT_L); // Get low bits
-    int16_t accelZ = (accelZ_H << 8) | accelZ_L; // Combine
+    int16_t accelZ = ((accelZ_H << 8) | accelZ_L) - accelZOffset; // Combine
     float accelZ_mps2 = (accelZ / ACCEL_SENSITIVITY) * GRAVITY; // Convert to m/s^2
 
     // Get gyroscope data
     // Get GyroX Data
     uint8_t gyroX_H = readRegister(GYRO_XOUT_H); // Get high bits
     uint8_t gyroX_L = readRegister(GYRO_XOUT_L); // Get low bits
-    int16_t gyroX = (gyroX_H << 8) | gyroX_L; // Combine
+    int16_t gyroX = ((gyroX_H << 8) | gyroX_L) - gyroXOffset; // Combine
     float gyroX_rads = (gyroX / GYRO_SENSITIVITY) * DEG_TO_RAD; // Convert to rad/s
 
     // Get GyroY Data
     uint8_t gyroY_H = readRegister(GYRO_YOUT_H); // Get high bits
     uint8_t gyroY_L = readRegister(GYRO_YOUT_L); // Get low bits
-    int16_t gyroY = (gyroY_H << 8) | gyroY_L; // Combine
+    int16_t gyroY = ((gyroY_H << 8) | gyroY_L) - gyroYOffset; // Combine
     float gyroY_rads = (gyroY / GYRO_SENSITIVITY) * DEG_TO_RAD; // Convert to rad/s
     
     // Get GyroZ Data
     uint8_t gyroZ_H = readRegister(GYRO_ZOUT_H); // Get high bits
     uint8_t gyroZ_L = readRegister(GYRO_ZOUT_L); // Get low bits
-    int16_t gyroZ = (gyroZ_H << 8) | gyroZ_L; // Combine
+    int16_t gyroZ = ((gyroZ_H << 8) | gyroZ_L) - gyroZOffset; // Combine
     float gyroZ_rads = (gyroZ / GYRO_SENSITIVITY) * DEG_TO_RAD; // Convert to rad/s
 
     return std::array<float, 6> {accelX_mps2, accelY_mps2, accelZ_mps2, gyroX_rads, gyroY_rads, gyroZ_rads};
+  }
+
+  /**
+   * @brief Calculates offsets for the accelerometer and gyroscope data.
+   *
+   * Takes multiple samples of raw data to determine average offsets, which are then used to correct
+   * the sensor readings.
+   */
+  void calculateOffsets() {
+    const int sampleSize = 1000;
+    long accelXSum = 0, accelYSum = 0, accelZSum = 0;
+    long gyroXSum = 0, gyroYSum = 0, gyroZSum = 0;
+
+    for (int i = 0; i < sampleSize; i++) {
+      int16_t rawAccelX, rawAccelY, rawAccelZ, rawGyroX, rawGyroY, rawGyroZ;
+      getRawData(rawAccelX, rawAccelY, rawAccelZ, rawGyroX, rawGyroY, rawGyroZ);
+
+      accelXSum += rawAccelX;
+      accelYSum += rawAccelY;
+      accelZSum += rawAccelZ - 16384; // Assuming ±2g range
+      gyroXSum += rawGyroX;
+      gyroYSum += rawGyroY;
+      gyroZSum += rawGyroZ;
+
+      delay(2);  // Short delay between samples
+    }
+
+    accelXOffset = accelXSum / (float)sampleSize;
+    accelYOffset = accelYSum / (float)sampleSize;
+    accelZOffset = accelZSum / (float)sampleSize;
+    gyroXOffset = gyroXSum / (float)sampleSize;
+    gyroYOffset = gyroYSum / (float)sampleSize;
+    gyroZOffset = gyroZSum / (float)sampleSize;
   }
 
 private:
@@ -197,5 +235,24 @@ private:
     digitalWrite(VSPI_CS_PIN, HIGH);  ///< Deselect the slave device
     vspi.endTransaction();
     return value;
+  }
+
+  /**
+   * @brief Reads raw accelerometer and gyroscope data from the MPU6000 sensor.
+   *
+   * @param rawAccelX Reference to store raw accelerometer X-axis data.
+   * @param rawAccelY Reference to store raw accelerometer Y-axis data.
+   * @param rawAccelZ Reference to store raw accelerometer Z-axis data.
+   * @param rawGyroX Reference to store raw gyroscope X-axis data.
+   * @param rawGyroY Reference to store raw gyroscope Y-axis data.
+   * @param rawGyroZ Reference to store raw gyroscope Z-axis data.
+   */
+  void getRawData(int16_t &rawAccelX, int16_t &rawAccelY, int16_t &rawAccelZ, int16_t &rawGyroX, int16_t &rawGyroY, int16_t &rawGyroZ) {
+    rawAccelX = (readRegister(ACCEL_XOUT_H) << 8) | readRegister(ACCEL_XOUT_L);
+    rawAccelY = (readRegister(ACCEL_YOUT_H) << 8) | readRegister(ACCEL_YOUT_L);
+    rawAccelZ = (readRegister(ACCEL_ZOUT_H) << 8) | readRegister(ACCEL_ZOUT_L);
+    rawGyroX = (readRegister(GYRO_XOUT_H) << 8) | readRegister(GYRO_XOUT_L);
+    rawGyroY = (readRegister(GYRO_YOUT_H) << 8) | readRegister(GYRO_YOUT_L);
+    rawGyroZ = (readRegister(GYRO_ZOUT_H) << 8) | readRegister(GYRO_ZOUT_L);
   }
 };
