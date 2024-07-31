@@ -7,7 +7,6 @@
  * data, and handle SPI communication with the sensor.
  *
  * Dependencies:
- * - Wire.h: Manages I2C communication.
  * - SPI.h: Handles SPI communication.
  * - math.h: Provides mathematical constants and functions.
  *
@@ -31,10 +30,10 @@
 #include <math.h>
 
 // Define the pin numbers for the MPU6000 connection
-#define VSPI_CS_PIN 5    ///< Chip Select pin
-#define VSPI_SCK_PIN 18  ///< Serial Clock pin
-#define VSPI_SDI_PIN 19  ///< Serial Data In pin
-#define VSPI_SDO_PIN 23  ///< Serial Data Out pin
+#define MPU_CS_PIN 5    ///< Chip Select pin
+#define SCK_PIN 18  ///< Serial Clock pin
+#define SDI_PIN 19  ///< Serial Data In pin
+#define SDO_PIN 23  ///< Serial Data Out pin
 
 // Define MPU6000 register addresses
 #define ACCEL_XOUT_H 0x3B      ///< Accelerometer X-axis high byte
@@ -61,8 +60,6 @@
 // Variables to store offsets
 float accelXOffset = 0, accelYOffset = 0, accelZOffset = 0;
 float gyroXOffset = 0, gyroYOffset = 0, gyroZOffset = 0;
-
-SPIClass vspi(VSPI);  ///< Create an SPIClass instance for VSPI
 
 /**
  * @class MPUHandler
@@ -93,11 +90,11 @@ public:
    * Sets up SPI communication and configures the sensor.
    */
   void initializeMPU() {
-    // Start VSPI communication
-    vspi.begin(VSPI_SCK_PIN, VSPI_SDI_PIN, VSPI_SDO_PIN, VSPI_CS_PIN);
+    // Start SPI communication
+    SPI.begin(SCK_PIN, SDI_PIN, SDO_PIN, MPU_CS_PIN);
 
-    pinMode(VSPI_CS_PIN, OUTPUT); // Set Chip Select pin to output
-    digitalWrite(VSPI_CS_PIN, HIGH); // Deselect VSPI
+    pinMode(MPU_CS_PIN, OUTPUT); // Set Chip Select pin to output
+    digitalWrite(MPU_CS_PIN, HIGH); // Deselect MPU
 
     delay(100); // Wait for hardware initialization
 
@@ -209,12 +206,12 @@ private:
    * @param value The data byte to write to the register.
    */
   void writeRegister(uint8_t reg, uint8_t value) {
-    vspi.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE2));  ///< Adjust SPI settings if needed
-    digitalWrite(VSPI_CS_PIN, LOW);  ///< Select the slave device
-    vspi.transfer(reg);  ///< Register address
-    vspi.transfer(value);  ///< Register value
-    digitalWrite(VSPI_CS_PIN, HIGH);  ///< Deselect the slave device
-    vspi.endTransaction();
+    SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE2));  ///< Adjust SPI settings if needed
+    digitalWrite(MPU_CS_PIN, LOW);  ///< Select the slave device
+    SPI.transfer(reg);  ///< Register address
+    SPI.transfer(value);  ///< Register value
+    digitalWrite(MPU_CS_PIN, HIGH);  ///< Deselect the slave device
+    SPI.endTransaction();
   }
 
   /**
@@ -225,12 +222,12 @@ private:
    */
   uint8_t readRegister(uint8_t reg) {
     uint8_t value;
-    vspi.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE2));  ///< Adjust SPI settings if needed
-    digitalWrite(VSPI_CS_PIN, LOW);  ///< Select the slave device
-    vspi.transfer(reg | 0x80);  ///< Register address with read flag
-    value = vspi.transfer(0x00);  ///< Dummy write to read the register value
-    digitalWrite(VSPI_CS_PIN, HIGH);  ///< Deselect the slave device
-    vspi.endTransaction();
+    SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE2));  ///< Adjust SPI settings if needed
+    digitalWrite(MPU_CS_PIN, LOW);  ///< Select the slave device
+    SPI.transfer(reg | 0x80);  ///< Register address with read flag
+    value = SPI.transfer(0x00);  ///< Dummy write to read the register value
+    digitalWrite(MPU_CS_PIN, HIGH);  ///< Deselect the slave device
+    SPI.endTransaction();
     return value;
   }
 

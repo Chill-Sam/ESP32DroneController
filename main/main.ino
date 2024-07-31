@@ -1,30 +1,48 @@
-/* 
-* TODO: Check all sensor handling works on hardware
-* TODO: Physically test PIDs and tune them
-* TODO: Add documentation
-* TODO: Realworld test
-*/
+/**
+ * @file main.ino
+ *
+ * @brief Manages the control system of a drone, including sensor fusion, PID control, and motor throttle.
+ *
+ * This program initializes and controls various components of a drone, including the MPU6000
+ * accelerometer and gyroscope, DPS310 pressure sensor, QMC5883L magnetometer, and motor control via ESCs.
+ *
+ * Dependencies:
+ * - Arduino.h: Core Arduino functions.
+ * - cmath.h: Math library
+ * - WiFi.h: WiFi connectivity.
+ * - HTTPClient.h: HTTP client for web communication.
+ * - ArduinoJson.h: JSON parsing library.
+ * - Wire.h: I2C communication.
+ * - PIDController.h: PID control algorithms.
+ * - Adafruit_Sensor.h: Unified sensor library.
+ * - QMC5883LCompass.h: Magnetometer library.
+ * - MahonyAHRS.h: Sensor fusion algorithm.
+ * - ConnectionManager.h: Manages WiFi and HTTP connections.
+ * - EngineController.h: Manages motor control via ESCs.
+ * - MPUHandler.h: Interfaces with the MPU6000 sensor.
+ * - DPSHandler.h: Interfaces with the DPS310 sensor.
+ */
 
 #include <Arduino.h>
+#include <cmath>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <PIDController.h>
 #include <Adafruit_Sensor.h>
-#include <Adafruit_BMP3XX.h>
+#include <QMC5883LCompass.h>
 #include <MahonyAHRS.h>
+#include <Adafruit_DPS310.h>
 
-#include "KalmanFilter.h"
-#include "ConnectionManager.h"
-#include "EngineController.h"
-#include "MPUHandler.h"
+#include <ConnectionManager.h>
+#include <EngineController.h>
+#include <MPUHandler.h>
 
-// Barometer settings
-Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
-Adafruit_BMP3XX bmp; // For BMP310
-
-// Initialize mahony filter
+// Sensor and filter instances
+QMC5883LCompass compass;
+Adafruit_DPS310 dps;
+MPUHandler mpu;
 Mahony filter;
 
 // Network settings
@@ -32,16 +50,17 @@ const char* ssid = "";
 const char* password = "";
 const char* address = "";
 
-// Initialize WiFi and HTTP connection manager
+// Connection manager instance
 ConnectionManager connection(ssid, password, address);
 
 // JSON document for parsing incoming data
-StaticJsonDocument<1024> doc;
+StaticJsonDocument<2048> doc;
 
 // Joystick positions and switch state
 float joystick1[2], joystick2[2];
 bool isON;
 
+// Timing variables
 unsigned long previousTime = 0;
 
 // ESC control settings
@@ -51,33 +70,36 @@ const int resolution = 16;
 const int minPulseWidth = 1000;
 const int maxPulseWidth = 2000;
 
-// Initialize motor control
+// Engine controller instance
 EngineController controller(escPins, frequency, resolution, minPulseWidth, maxPulseWidth);
 
-// Initialize MPUHandler
-MPUHandler mpu;
-
-// Float for pitch, roll, yaw and relative altitude of drone
+// Drone state variables
 float dronePitch = 0;
 float droneRoll = 0;
 float droneYaw = 0;
-float droneAltitude = 0; // NOTE: This is relative altitude
+float dronePressure = 0; // Relative pressure change
+float startPressure;
 
-// NOTE: IMPORTANT: NEEDS TO BE TUNED BEFORE FLYING
+// PID controllers and tuning parameters
 PIDController pidPitch, pidRoll, pidYaw, pidAlt;
 double pitchKp = 0.7, pitchKi = 0.7, pitchKd = 0.1;
 double rollKp = 0.7, rollKi = 0.7, rollKd = 0.1;
 double yawKp = 0.7, yawKi = 0.7, yawKd = 0.1;
 double altKp = 0.7, altKi = 0.7, altKd = 0.1;
-double pitchSetPoint, rollSetPoint, yawSetPoint, altSetPoint = 0;
+double pitchSetPoint, rollSetPoint, yawSetPoint, pressureSetPoint = 0;
 double maxPitch, maxRoll, maxYaw = 15;
-double maxAlt = 1;
+double maxPressure = 2;
 
-// NOTE: Needs to be tuned properly
+// Initial lift-off value
 int liftOffValue = 10;
 
+/**
+ * @brief Parses a JSON payload to extract joystick and switch states.
+ *
+ * @param payload The JSON payload to decode.
+ */
 void decodeJson(String payload) {
-    StaticJsonDocument<256> doc;  // Adjust size based on JSON complexity
+    //StaticJsonDocument<1024> doc;  // Adjust size based on JSON complexity
 
     // Attempt to parse the JSON payload
     DeserializationError error = deserializeJson(doc, payload);
@@ -94,6 +116,9 @@ void decodeJson(String payload) {
     isON         = doc["Values"]["Switch"];                // State of the switch
 }
 
+/**
+ * @brief Manually sets the motor throttle based on serial input.
+ */
 void setMotorThrottleManual() {
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
@@ -111,10 +136,12 @@ void setMotorThrottleManual() {
   }
 }
 
-// NOTE: Using mahony filter for drone sensor fusion
+/**
+ * @brief Calculates the drone's orientation angles and relative altitude using sensor data and the Mahony filter.
+ */
 void calculateAngles() {
-    std::array<float, 6> data = mpu.getData();  // Update sensor readings from MPU6000
-    
+    // Read MPU6000 data
+    std::array<float, 6> data = mpu.getData();
     float accelX = data[0];
     float accelY = data[1];
     float accelZ = data[2];
@@ -122,13 +149,10 @@ void calculateAngles() {
     float gyroY = data[4];
     float gyroZ = data[5];
 
-    // Read HMC5883L data
-    sensors_event_t event;
-    mag.getEvent(&event);
-    float magX = event.magnetic.x;
-    float magY = event.magnetic.y;
-    float magZ = event.magnetic.z;
-
+    // Read QMC5883L data
+    float magX = compass.getX();
+    float magY = compass.getY();
+    float magZ = compass.getZ();
 
     // Update the filter
     filter.update(gyroX, gyroY, gyroZ, accelX, accelY, accelZ, magX, magY, magZ);
@@ -138,22 +162,26 @@ void calculateAngles() {
     droneRoll = filter.getRoll();
     droneYaw = filter.getYaw();
 
-    // Read BMP310 data
-    if (!bmp.performReading()) {
-      Serial.println("Failed to perform reading from BMP310");
-      return;
-    } 
+    // Get altitude
+    sensors_event_t temp_event, pressure_event;
+  
+    while (!dps.temperatureAvailable() || !dps.pressureAvailable()) {
+      yield(); // wait until there's something to read
+    }
 
-    // float temperature = bmp.temperature; // Not necessary
-    float pressure = bmp.pressure;
+    dps.getEvents(&temp_event, &pressure_event);
+    Serial.print(F("Pressure = "));
+    Serial.print(pressure_event.pressure);
+    Serial.println(" hPa"); 
 
-    // Convert pressure to altitude
-    droneAltitude = pressureToAltitude(pressure);
+    Serial.println();
+    dronePressure = pressure_event.pressure - startPressure; 
 }
 
+/**
+ * @brief Performs PID control to adjust motor speeds based on desired setpoints and sensor data.
+ */
 void pidControl() {
-  // NOTE: NEEDS TO BE TUNED AND TESTED BEFORE FULL USAGE
-  
   float MAX_PID = 10.0;
   float MIN_PID = -10.0;
 
@@ -171,10 +199,10 @@ void pidControl() {
   pidYaw.begin();
   pidYaw.setpoint(yawSetPoint); // Desired yaw setpoint
   pidYaw.tune(yawKp, yawKi, yawKd);
-  pidYaw.limit(MIN_PID, MAX_PID); // Set output limits for yaws
+  pidYaw.limit(MIN_PID, MAX_PID); // Set output limits for yaw
 
   pidAlt.begin();
-  pidAlt.setpoint(altSetPoint);
+  pidAlt.setpoint(pressureSetPoint);
   pidAlt.tune(altKp, altKi, altKd);
   pidAlt.limit(MIN_PID, MAX_PID);
 
@@ -182,30 +210,30 @@ void pidControl() {
   float outputPitch = pidPitch.compute(dronePitch);
   float outputRoll = pidRoll.compute(droneRoll);
   float outputYaw = pidYaw.compute(droneYaw);
-  float outputAlt = pidAlt.compute(droneAlt);
+  float outputPressure = pidAlt.compute(dronePressure);
 
   // Print the control outputs for debugging
   Serial.print("outputPitch: ");
   Serial.println(outputPitch);
   Serial.print("outputRoll: ");
   Serial.println(outputRoll);
+
   Serial.print("outputYaw: ");
   Serial.println(outputYaw);
-  Serial.print("outputAlt: ");
-  Serial.println(outputAlt);
+  Serial.print("outputPressure: ");
+  Serial.println(outputPressure);
 
   // Set engine speeds based on PID outputs, ensuring values are within 0-100 range
-
-  // NOTE: IMPORTANT, NEED TO ADD outputYaw and outputAlt. NEED TO CHECK HARDWARE AND UPDATE
   controller.setEngineSpeed(1, constrain(liftOffValue + outputPitch - outputRoll, 0, 100));
   controller.setEngineSpeed(2, constrain(liftOffValue - outputPitch - outputRoll, 0, 100));
   controller.setEngineSpeed(3, constrain(liftOffValue + outputPitch + outputRoll, 0, 100));
   controller.setEngineSpeed(4, constrain(liftOffValue - outputPitch + outputRoll, 0, 100));
 }
 
-// NOTE: Made for one time tuning use.
-// NOTE: Replace pitchKp/i/d with others to tune them.
-void setPID(){
+/**
+ * @brief Adjusts PID tuning parameters based on serial input for one-time tuning.
+ */
+void setPID() {
     // Check if there is incoming serial data
     if (Serial.available() > 0) {
       String input = Serial.readStringUntil('\n'); // Read the input until newline
@@ -220,77 +248,79 @@ void setPID(){
         // Set the corresponding PID parameter based on the index
         if (value == 0){
           pitchKp = value2;
-          Serial.println("Set p value to "+String(pitchKp));
+          Serial.println("Set p value to " + String(pitchKp));
         }
         else if (value == 1){
           pitchKi = value2;
-          Serial.println("Set i value to "+String(pitchKi));
+          Serial.println("Set i value to " + String(pitchKi));
         }
         else if (value == 2){
           pitchKd = value2;
-          Serial.println("Set d value to "+String(pitchKd));
+          Serial.println("Set d value to " + String(pitchKd));
         }
-        else if (value == 3 ){
+        else if (value == 3){
           liftOffValue = value2;
-          Serial.println("Set lift-off value to "+String(liftOffValue));
+          Serial.println("Set lift-off value to " + String(liftOffValue));
         }
       }
     }
 }
 
-
-float pressureToAltitude(float pressure) {
-  const float P0 = 101325.0; // Standard atmospheric pressure at sea level in Pa
-  return 44330.0 * (1.0 - pow(pressure / P0, 0.1903));
-}
-
-
+/**
+ * @brief Updates the control setpoints based on joystick inputs.
+ */
 void updateSetpoints() {
-  // NOTE: ADJUST VALUES FOR REALITY
   float MAX_PITCH_ANGLE = 15.0;
   float MAX_ROLL_ANGLE = 15.0;
-  float YAW_COEFFICIENT = 10.0;
-  float ALT_COEFFICIENT = 0.1; 
+  float YAW_COEFFICIENT = 0.001;
+  float PRESSURE_COEFFICIENT = 0.001; 
 
   pitchSetPoint = joystick1[1] * MAX_PITCH_ANGLE;
-  rollSetPoint = joystick1[0] * MAX_ROLL_RATE;
+  rollSetPoint = joystick1[0] * MAX_ROLL_ANGLE;
 
   unsigned long currentTime = millis();  // Get the current time
-  double dt = (currentTime - previousTime) / 1000;
-
+  float dt = (currentTime - previousTime);
   if (dt > 0) {
-    altSetPoint += joystick2[1] * ALT_COEFFICIENT * dt;
-    yawSetPoint += joystick2[0] * YAW_COEFFICIENT * dt;
-
-    previousTime = currentTime;
+    if (abs(joystick2[1]) >= abs(joystick2[0])) {
+      pressureSetPoint += joystick2[1] * PRESSURE_COEFFICIENT * dt;
+      pressureSetPoint = constrain(pressureSetPoint, 0, maxPressure);
+    } else {
+      yawSetPoint += joystick2[0] * YAW_COEFFICIENT * dt;
+    }
   }
+  previousTime = currentTime;
 }
 
-
-void setup()
-{
+/**
+ * @brief Initializes the drone control system, including sensors, network connection, and ESCs.
+ */
+void setup() {
   Serial.begin(115200);
   Serial.println("System Online");
 
   mpu.initializeMPU();
+  mpu.calculateOffsets();
 
-  // Initialize HMC5883L
-  if (!mag.begin()) {
-    Serial.println("HMC5883L not detected");
-    while (1);
+  if (! dps.begin_SPI(15)) {  // If you want to use SPI
+    Serial.println("Failed to find DPS");
+    while (1) yield();
+  }
+  Serial.println("DPS OK!");
+
+  dps.configurePressure(DPS310_128HZ, DPS310_128SAMPLES);
+  dps.configureTemperature(DPS310_128HZ, DPS310_128SAMPLES);
+
+  delay(1500);
+
+  sensors_event_t temp_event, pressure_event;
+  
+  while (!dps.temperatureAvailable() || !dps.pressureAvailable()) {
+    return; // wait until there's something to read
   }
 
-  // Initialize BMP310
-  if (!bmp.begin_I2C()) { // Default I2C address is 0x76
-    Serial.println("BMP310 not detected");
-    while (1);
-  }
+  dps.getEvents(&temp_event, &pressure_event);
 
-  // Set up BMP310 sensor settings
-  bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
-  bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
-  bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
-  bmp.setOutputDataRate(BMP3_ODR_50_HZ);
+  startPressure = pressure_event.pressure;
 
   connection.connectToWifi();
   connection.connectToWebsite();
@@ -299,18 +329,20 @@ void setup()
   controller.stopEngines(3000); // Resets engines to 0% throttle to initialize them
 }
 
-
-void loop()
-{
+/**
+ * @brief Main loop to handle drone control, including sensor updates, PID control, and motor throttle adjustments.
+ */
+void loop() {
   String payload = connection.getPayloadFromAddress();
   decodeJson(payload);
 
   if (isON) {
     calculateAngles();
     updateSetpoints();
-    setPID();
+    // setPID();
     pidControl();
     // setMotorThrottleManual();
+    delay(10);
   }
   else {
     controller.stopEngines(1000);

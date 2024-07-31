@@ -49,8 +49,7 @@ public:
      */
     void initializeESC() {
         for (int i = 0; i <= 3; i++) {
-            ledcSetup(i, frequency, resolution);
-            ledcAttachPin(escPins[i], i);
+            ledcAttach(escPins[i], frequency, resolution);
         }
     }
 
@@ -73,7 +72,7 @@ public:
      */
     void stopEngines(int delayMilliseconds) {
         for (int i = 0; i <= 3; i++) {
-            ledcWrite(i , pulseWidthToDutyCycle(minPulseWidth));
+            ledcWrite(escPins[i] , pulseWidthToDutyCycle(minPulseWidth));
         }
         Serial.print("Engines stopped");
 
@@ -100,14 +99,14 @@ public:
 
         if (engineNumber >= 1 && engineNumber <= 4) {
             float pulseWidth = map(throttle, 0, 100, minPulseWidth, maxPulseWidth);
-            ledcWrite(engineNumber - 1, pulseWidthToDutyCycle(pulseWidth));
+            ledcWrite(escPins[engineNumber - 1], pulseWidthToDutyCycle(pulseWidth));
             //Serial.println("Engine " + String(engineNumber) + ": Throttle set to " + String(throttle) + "%");
         }
 
         else if (engineNumber == 5) {
             for(int i = 0; i <= 3; i++) {
                 float pulseWidth = map(throttle, 0, 100, minPulseWidth, maxPulseWidth);
-                ledcWrite(i, pulseWidthToDutyCycle(pulseWidth));
+                ledcWrite(escPins[i], pulseWidthToDutyCycle(pulseWidth));
             }
             Serial.println("Engines set to " + String(throttle) + "% throttle");
         }
