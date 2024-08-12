@@ -29,7 +29,7 @@
  * @param address The URL of the HTTP server to connect to.
  */
 ConnectionManager::ConnectionManager(const char* ssid, const char* password, const char* address) :
-        ssid(ssid), password(password), address(address) {}
+  ssid(ssid), password(password), address(address) {}
 
 /**
  * @brief Connects to the specified WiFi network.
