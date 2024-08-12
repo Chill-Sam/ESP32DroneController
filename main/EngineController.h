@@ -6,7 +6,12 @@
  * This header file contains the declaration of the EngineController class and
  * related functions. The EngineController class provides functionality for
  * handling the four motors of the drone.
+ *
+ * ### Dependencies:
+ * - array: Array library
  */
+
+#include <array>
 
 /**
  * @class EngineController

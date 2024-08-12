@@ -9,9 +9,14 @@
  *
  * ### Dependencies:
  * - EngineController.h: Declaration of EngineController class and its members
+ * - array: Array library
+ * - math.h: Provides mathematical functions
  */
 
 #include "EngineController.h" // EngineController class and member definitions
+#include <array>
+#include <math.h>
+#include <Arduino.h>
 
 /**
  * @brief Constructs an EngineController with given parameters.
@@ -81,7 +86,7 @@ void EngineController::stopEngines(int delayMilliseconds) {
  *
  * @note If an invalid engine number or throttle percentage is specified, an error message is printed.
  */
-void setEngineSpeed(int engineNumber, float throttle) {
+void EngineController::setEngineSpeed(int engineNumber, float throttle) {
   if (engineNumber < 1 || engineNumber > 5 ) {
     Serial.println("Engine number should be 1-5, 1-4 individual, 5 all.");
     return;

@@ -8,6 +8,9 @@
  * handling the MPU6000 chip for the ESP32 drone controller.
  */
 
+#include <cstdint>
+#include <array>
+
 /**
  * @class MPUHandler
  *

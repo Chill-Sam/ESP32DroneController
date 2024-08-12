@@ -11,10 +11,6 @@
  * - WiFi.h: Manages WiFi connections.
  * - HTTPClient.h: Handles HTTP requests.
  */
-
-#ifndef MahonyAHRS_h
-#define MahonyAHRS_h
-
 #include <WiFi.h> // WiFi connection library
 #include <HTTPClient.h> // HTTP request library
 

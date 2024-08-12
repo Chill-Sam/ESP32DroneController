@@ -12,8 +12,10 @@
  * - math.h: Provides mathematical constants
  */
 
+#include "MPUHandler.h"
 #include <SPI.h> // SPI communication library
 #include <math.h>
+#include <Arduino.h>
 
 // Define the pin numbers for the MPU6000 connection
 #define MPU_CS_PIN 5    ///< Chip Select pin
@@ -42,6 +44,8 @@
 #define DEG_TO_RAD (M_PI / 180)      ///< Conversion factor from degrees to radians
 #define ACCEL_SENSITIVITY 16384.0    ///< Accelerometer sensitivity (LSB/g)
 #define GYRO_SENSITIVITY 131.0       ///< Gyroscope sensitivity (LSB/(deg/s))
+
+MPUHandler::MPUHandler() {}
 
 /**
  * @brief Initializes the MPU6000 sensor.
