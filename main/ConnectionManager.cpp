@@ -1,9 +1,9 @@
 /**
- * @file ConnectionManager.h
+ * @file ConnectionManager.cpp
  * @brief Implementation of the ConnectionManager class and associated functions.
  *
  * @details
- * This header file contains the implementation of the ConnectionManager class and
+ * This file contains the implementation of the ConnectionManager class and
  * related functions. The ConnectionManager class provides functionality for
  * handling the wifi and http requests for the ESP32 drone controller.
  *
