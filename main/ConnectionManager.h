@@ -15,8 +15,8 @@
 #ifndef MahonyAHRS_h
 #define MahonyAHRS_h
 
-#include <WiFi.h> //< WiFi connection library
-#include <HTTPClient.h> //< HTTP request library
+#include <WiFi.h> // WiFi connection library
+#include <HTTPClient.h> // HTTP request library
 
 /**
  * @class ConnectionManager
