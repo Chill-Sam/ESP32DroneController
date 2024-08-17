@@ -131,6 +131,8 @@ std::array<float, 6> MPUHandler::getData() {
   int16_t gyroZ = ((gyroZ_H << 8) | gyroZ_L) - gyroZOffset; // Combine
   float gyroZ_degs = (gyroZ / GYRO_SENSITIVITY);// * DEG_TO_RAD; // Convert to rad/s
 
+  accelX_mps2 = -accelX_mps2;
+
   return std::array<float, 6> {accelX_mps2, accelY_mps2, accelZ_mps2, gyroX_degs, gyroY_degs, gyroZ_degs};
 }
 
