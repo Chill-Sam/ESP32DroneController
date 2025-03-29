@@ -1,3 +1,5 @@
+#pragma once
+
 #include "MPU6000.h"
 #include <MadgwickAHRS.h>
 #include <QMC5883LCompass.h>
