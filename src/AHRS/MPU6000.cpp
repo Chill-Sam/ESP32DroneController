@@ -36,7 +36,7 @@
 #define ACCEL_SENSITIVITY 8192.0 ///< Accelerometer sensitivity (LSB/g)
 #define GYRO_SENSITIVITY 65.5    ///< Gyroscope sensitivity (LSB/(deg/s))
 
-MPU6000::MPU6000() {}
+MPU6000::MPU6000() = default;
 
 void MPU6000::initializeMPU() {
     SPI.begin(SCK_PIN, SDI_PIN, SDO_PIN, MPU_CS_PIN);
@@ -75,38 +75,38 @@ void MPU6000::initializeMPU() {
     } else {
         Serial.print("Error setting USER_CTRL Register: ");
         Serial.print(userCtrl, HEX);
-        while (1)
-            ;
+        while (true) {
+        }
     }
 }
 
 void MPU6000::getData(float &ax, float &ay, float &az, float &gx, float &gy,
-                      float &gz) {
+                      float &gz) const {
     // Get raw values first
-    int16_t rax, ray, raz, rgx, rgy, rgz;
+    int16_t rax = 0, ray = 0, raz = 0, rgx = 0, rgy = 0, rgz = 0;
     getRawData(rax, ray, raz, rgx, rgy, rgz);
-    ax = rax / ACCEL_SENSITIVITY * GRAVITY - accelXOffset;
-    ay = ray / ACCEL_SENSITIVITY * GRAVITY - accelYOffset;
-    az = raz / ACCEL_SENSITIVITY * GRAVITY - accelZOffset;
+    ax = static_cast<float>((rax / ACCEL_SENSITIVITY * GRAVITY) - accelXOffset);
+    ay = static_cast<float>((ray / ACCEL_SENSITIVITY * GRAVITY) - accelYOffset);
+    az = static_cast<float>((raz / ACCEL_SENSITIVITY * GRAVITY) - accelZOffset);
 
-    gx = rgx / GYRO_SENSITIVITY - gyroXOffset;
-    gy = rgy / GYRO_SENSITIVITY - gyroYOffset;
-    gz = rgz / GYRO_SENSITIVITY - gyroZOffset;
+    gx = static_cast<float>((rgx / GYRO_SENSITIVITY) - gyroXOffset);
+    gy = static_cast<float>((rgy / GYRO_SENSITIVITY) - gyroYOffset);
+    gz = static_cast<float>((rgz / GYRO_SENSITIVITY) - gyroZOffset);
 }
 
 void MPU6000::calibrateAccelerometer() {
     Serial.println("Calibrating Accelerometer...");
-    float ax, ay, az;
     int numSamples = 500;
 
-    double sumXOffset, sumYOffset, sumZOffset = 0;
+    float sumXOffset = 0, sumYOffset = 0, sumZOffset = 0;
 
     for (int i = 0; i < numSamples; i++) {
-        int16_t rax, ray, raz, rgx, rgy, rgz;
+        float ax = 0, ay = 0, az = 0;
+        int16_t rax = 0, ray = 0, raz = 0, rgx = 0, rgy = 0, rgz = 0;
         getRawData(rax, ray, raz, rgx, rgy, rgz);
-        ax = rax / ACCEL_SENSITIVITY * GRAVITY;
-        ay = ray / ACCEL_SENSITIVITY * GRAVITY;
-        az = raz / ACCEL_SENSITIVITY * GRAVITY;
+        ax = static_cast<float>(rax / ACCEL_SENSITIVITY * GRAVITY);
+        ay = static_cast<float>(ray / ACCEL_SENSITIVITY * GRAVITY);
+        az = static_cast<float>(raz / ACCEL_SENSITIVITY * GRAVITY);
 
         sumXOffset += ax;
         sumYOffset += ay;
@@ -119,9 +119,9 @@ void MPU6000::calibrateAccelerometer() {
         delay(10);
     }
 
-    sumXOffset /= numSamples;
-    sumYOffset /= numSamples;
-    sumZOffset /= numSamples;
+    sumXOffset /= static_cast<float>(numSamples);
+    sumYOffset /= static_cast<float>(numSamples);
+    sumZOffset /= static_cast<float>(numSamples);
 
     // Adjust for gravity
     sumZOffset -= GRAVITY;
@@ -137,17 +137,17 @@ void MPU6000::calibrateAccelerometer() {
 
 void MPU6000::calibrateGyroscope() {
     Serial.println("Calibrating gyroscope...");
-    float gx, gy, gz;
     int numSamples = 500;
 
-    double sumXOffset, sumYOffset, sumZOffset = 0;
+    float sumXOffset = 0, sumYOffset = 0, sumZOffset = 0;
 
     for (int i = 0; i < numSamples; i++) {
-        int16_t rax, ray, raz, rgx, rgy, rgz;
+        float gx = 0, gy = 0, gz = 0;
+        int16_t rax = 0, ray = 0, raz = 0, rgx = 0, rgy = 0, rgz = 0;
         getRawData(rax, ray, raz, rgx, rgy, rgz);
-        gx = rgx / GYRO_SENSITIVITY;
-        gy = rgy / GYRO_SENSITIVITY;
-        gz = rgz / GYRO_SENSITIVITY;
+        gx = static_cast<float>(rgx / GYRO_SENSITIVITY);
+        gy = static_cast<float>(rgy / GYRO_SENSITIVITY);
+        gz = static_cast<float>(rgz / GYRO_SENSITIVITY);
 
         sumXOffset += gx;
         sumYOffset += gy;
@@ -160,9 +160,9 @@ void MPU6000::calibrateGyroscope() {
         delay(10);
     }
 
-    sumXOffset /= numSamples;
-    sumYOffset /= numSamples;
-    sumZOffset /= numSamples;
+    sumXOffset /= static_cast<float>(numSamples);
+    sumYOffset /= static_cast<float>(numSamples);
+    sumZOffset /= static_cast<float>(numSamples);
 
     gyroXOffset = sumXOffset;
     gyroYOffset = sumYOffset;
@@ -182,7 +182,7 @@ void MPU6000::writeRegister(uint8_t reg, uint8_t value) {
 }
 
 uint8_t MPU6000::readRegister(uint8_t reg) {
-    uint8_t value;
+    uint8_t value = 0;
     SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE2));
     digitalWrite(MPU_CS_PIN, LOW);
     SPI.transfer(reg | 0x80);
@@ -196,10 +196,16 @@ uint8_t MPU6000::readRegister(uint8_t reg) {
 void MPU6000::getRawData(int16_t &rawAccelX, int16_t &rawAccelY,
                          int16_t &rawAccelZ, int16_t &rawGyroX,
                          int16_t &rawGyroY, int16_t &rawGyroZ) {
-    rawAccelX = (readRegister(ACCEL_XOUT_H) << 8) | readRegister(ACCEL_XOUT_L);
-    rawAccelY = (readRegister(ACCEL_YOUT_H) << 8) | readRegister(ACCEL_YOUT_L);
-    rawAccelZ = (readRegister(ACCEL_ZOUT_H) << 8) | readRegister(ACCEL_ZOUT_L);
-    rawGyroX = (readRegister(GYRO_XOUT_H) << 8) | readRegister(GYRO_XOUT_L);
-    rawGyroY = (readRegister(GYRO_YOUT_H) << 8) | readRegister(GYRO_YOUT_L);
-    rawGyroZ = (readRegister(GYRO_ZOUT_H) << 8) | readRegister(GYRO_ZOUT_L);
+    rawAccelX = read16(ACCEL_XOUT_H, ACCEL_XOUT_L);
+    rawAccelY = read16(ACCEL_YOUT_H, ACCEL_YOUT_L);
+    rawAccelZ = read16(ACCEL_ZOUT_H, ACCEL_ZOUT_L);
+    rawGyroX = read16(GYRO_XOUT_H, GYRO_XOUT_L);
+    rawGyroY = read16(GYRO_YOUT_H, GYRO_YOUT_L);
+    rawGyroZ = read16(GYRO_ZOUT_H, GYRO_ZOUT_L);
+}
+
+int16_t MPU6000::read16(uint8_t highReg, uint8_t lowReg) {
+    uint8_t high = readRegister(highReg);
+    uint8_t low = readRegister(lowReg);
+    return static_cast<int16_t>(static_cast<uint16_t>(high) << 8 | low);
 }

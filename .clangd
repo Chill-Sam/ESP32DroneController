@@ -8,6 +8,7 @@ CompileFlags:
     -Dssize_t=long,
     -D_SSIZE_T_DECLARED,
     -Wno-unknown-warning-option
+    -Wall -Wextra -Wpedantic -Werror
   ]
 
   Remove: [

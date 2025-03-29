@@ -1,8 +1,21 @@
 #include "AHRS/AHRS.h"
 
-AHRS ahrs;
+namespace {
+struct Orientation {
+    float pitch = 0.0F;
+    float roll = 0.0F;
+    float yaw = 0.0F;
+};
 
-volatile float pitch, roll, yaw;
+AHRS ahrs;
+Orientation orientation;
+
+void getOrientation() {
+    orientation.pitch = ahrs.pitch;
+    orientation.roll = ahrs.roll;
+    orientation.yaw = ahrs.yaw;
+}
+} // namespace
 
 void setup() {
     Serial.begin(115200);
@@ -10,15 +23,10 @@ void setup() {
     ahrs.init();
 }
 
-void getOrientation() {
-    pitch = ahrs.pitch;
-    roll = ahrs.roll;
-    yaw = ahrs.yaw;
-}
-
 void loop() {
     getOrientation();
 
-    Serial.println("pitch:" + String(pitch) + ",roll:" + String(roll) +
-                   ",yaw:" + String(yaw));
+    Serial.println("pitch:" + String(orientation.pitch) +
+                   ",roll:" + String(orientation.roll) +
+                   ",yaw:" + String(orientation.yaw));
 }

@@ -4,7 +4,7 @@
 
 class AHRS {
   public:
-    volatile float pitch, roll, yaw;
+    volatile float pitch = 0, roll = 0, yaw = 0;
     void init();
 
   private:
