@@ -1,6 +1,6 @@
 #include "MPU6000.h"
+#include <Arduino.h>
 #include <SPI.h> // SPI communication library
-#include <math.h>
 
 // Define the pin numbers for the MPU6000 connection
 #define MPU_CS_PIN 5 ///< Chip Select pin
@@ -33,7 +33,6 @@
 // #define GRAVITY 9.80665              ///< Gravity constant in m/s^2
 #define GRAVITY 1 ///< Measure in g
 
-#define DEG_TO_RAD (M_PI / 180)  ///< Conversion factor from degrees to radians
 #define ACCEL_SENSITIVITY 8192.0 ///< Accelerometer sensitivity (LSB/g)
 #define GYRO_SENSITIVITY 65.5    ///< Gyroscope sensitivity (LSB/(deg/s))
 

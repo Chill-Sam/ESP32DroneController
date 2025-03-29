@@ -1,5 +1,4 @@
-#include <array>
-#include <cstdint>
+#include <stdint.h>
 
 class MPU6000 {
   private:

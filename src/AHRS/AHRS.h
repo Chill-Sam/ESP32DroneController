@@ -5,9 +5,6 @@
 class AHRS {
   public:
     volatile float pitch, roll, yaw;
-
-    AHRS();
-
     void init();
 
   private:
@@ -15,5 +12,5 @@ class AHRS {
     MPU6000 mpu;
     Madgwick filter;
 
-    void sensorTask(void *pvParameters);
-}
+    static void sensorTask(void *pvParameters);
+};
