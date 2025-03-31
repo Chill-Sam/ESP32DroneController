@@ -10,12 +10,16 @@ float ESCDriver::pulseWidthToDutyCycle(float pulseWidth) const {
                                   static_cast<long>(maxDutyCycle)));
 }
 
-void ESCDriver::begin() const {
+void ESCDriver::begin() {
+    disarm();
     ledcSetup(channel, frequency, resolution);
     ledcAttachPin(pwmPin, channel);
 }
 
 void ESCDriver::write(float pulseWidth) {
+    if (!isArmed) {
+        return;
+    }
     ledcWrite(channel,
               static_cast<uint32_t>(pulseWidthToDutyCycle(pulseWidth)));
 }

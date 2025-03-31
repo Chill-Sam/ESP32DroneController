@@ -6,7 +6,7 @@ class ESCDriver {
   public:
     ESCDriver(int pwmPin, uint8_t channel);
 
-    void begin() const;
+    void begin();
     void arm();
     void disarm();
     void write(float pulseWidth);
