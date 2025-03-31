@@ -64,5 +64,7 @@ void AHRS::sensorTask(void *pvParameters) {
         self->roll = self->filter.getRoll();
         self->pitch = self->filter.getPitch();
         self->yaw = self->filter.getYaw();
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
