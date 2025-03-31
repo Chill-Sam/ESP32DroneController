@@ -15,6 +15,11 @@ void TCS::begin() {
     m3 = MCU(&escC);
     m4 = MCU(&escD);
 
+    m1.begin();
+    m2.begin();
+    m3.begin();
+    m4.begin();
+
     disarm();
 }
 
