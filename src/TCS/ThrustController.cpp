@@ -71,3 +71,14 @@ TCSState TCS::getTCSState() {
 
     return state;
 };
+
+void TCS::testEngines(float throttle) {
+    if (!armed) {
+        return;
+    }
+
+    m1.setThrottle(throttle);
+    m2.setThrottle(throttle);
+    m3.setThrottle(throttle);
+    m4.setThrottle(throttle);
+}
