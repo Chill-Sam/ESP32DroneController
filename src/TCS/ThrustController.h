@@ -20,7 +20,7 @@ class TCS {
     void disarm();
     int setThrottle(int motor, float throttle);
 
-    void testEngines(float throttle = 0.2) const;
+    void testEngines(float throttle = 0.2);
 
     TCSState getTCSState();
 
