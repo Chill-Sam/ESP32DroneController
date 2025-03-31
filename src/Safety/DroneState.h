@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdint>
 
 enum class FlightMode : uint8_t { DISARMED, ARMED, FAILSAFE };
