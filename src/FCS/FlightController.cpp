@@ -40,6 +40,7 @@ void FCS::update() {
     TCSState thrustState = tcs.getTCSState();
 
     // TODO:
+    // Calculate setpoints
     // Set PID to setpoints
     // Calculate PID based on orientation
     // Set speed of engines via TCS
