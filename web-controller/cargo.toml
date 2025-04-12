@@ -1,0 +1,15 @@
+[package]
+name = "web-controller"
+version = "0.1.0"
+edition = "2024"
+
+[profile.dev]
+lto = false
+opt-level = 0
+incremental = true
+debug = true
+codegen-units = 256
+
+[dependencies]
+actix-web = "4"
+actix-files = "0.6.6"
