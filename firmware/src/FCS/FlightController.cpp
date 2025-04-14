@@ -1,0 +1,55 @@
+#include "Arduino.h"
+#include "FlightController.h"
+
+FCS::FCS(int pinA, int pinB, int pinC, int pinD, int minPulseWidth,
+         int maxPulsewidth, const char *ssid, const char *password,
+         const char *websocket)
+    : tcs(pinA, pinB, pinC, pinD, minPulseWidth, maxPulsewidth) {
+    ahrs.init();
+}
+
+void FCS::updateOrientation() {
+    state.orientation.pitch = ahrs.pitch;
+    state.orientation.roll = ahrs.roll;
+    state.orientation.yaw = ahrs.yaw;
+}
+
+void FCS::updateThrottleState() {
+    state.throttleState.ThrottleA = tcs.getThrottle(1);
+    state.throttleState.ThrottleB = tcs.getThrottle(2);
+    state.throttleState.ThrottleC = tcs.getThrottle(3);
+    state.throttleState.ThrottleD = tcs.getThrottle(4);
+}
+
+void FCS::updateArmState() {
+    state.armState.ArmedA = tcs.isArmed(1);
+    state.armState.ArmedB = tcs.isArmed(2);
+    state.armState.ArmedC = tcs.isArmed(3);
+    state.armState.ArmedD = tcs.isArmed(4);
+}
+
+void FCS::begin() {
+    xTaskCreatePinnedToCore(update, "FCU", 4096, this, 1, nullptr, 1);
+}
+
+void FCS::update(void *pvParameters) {
+    FCS *fcs = static_cast<FCS *>(pvParameters);
+
+    const TickType_t rate = pdMS_TO_TICKS(2); // 500 Hz
+    TickType_t last = xTaskGetTickCount();
+
+    while (true) {
+        // TODO:
+        // Get current RC status
+
+        // Update State
+        fcs->updateOrientation();
+        fcs->updateThrottleState();
+        fcs->updateArmState();
+
+        // TODO:
+        // Update PIDs
+        // Decide on action based on state
+        // Execute action
+    }
+}
