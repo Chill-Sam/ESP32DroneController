@@ -16,6 +16,9 @@ class TCS {
     void test();
     void testMotor(int motor);
 
+    float getThrottle(int motor);
+    bool isArmed(int motor);
+
   private:
     MCU engineA;
     MCU engineB;

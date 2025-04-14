@@ -84,6 +84,16 @@ void TCS::testMotor(int motor) {
     engine.test();
 }
 
+float TCS::getThrottle(int motor) {
+    MCU engine = intToEngine(motor);
+    return engine.currentThrottle;
+}
+
+bool TCS::isArmed(int motor) {
+    MCU engine = intToEngine(motor);
+    return engine.armed;
+}
+
 MCU TCS::intToEngine(int motor) {
     switch (motor) {
     case 1:

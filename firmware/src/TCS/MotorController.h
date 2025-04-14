@@ -13,6 +13,7 @@ class MCU {
     void test();
 
     bool armed = false;
+    float currentThrottle = 0.0F;
 
   private:
     int minPulsewidth;

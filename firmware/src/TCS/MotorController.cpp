@@ -21,6 +21,7 @@ void MCU::disarm() {
 void MCU::setThrottle(float throttle) {
     if (!armed) {
         Serial.println("Engine " + String(channel) + " is disarmed!");
+        stop();
         return;
     }
 
@@ -28,11 +29,13 @@ void MCU::setThrottle(float throttle) {
                    String(throttle) + "% throttle");
     float pulsewidth = map(throttle, 0, 100, minPulsewidth, maxPulsewidth);
     esc.write(pulsewidth);
+    currentThrottle = throttle;
 }
 
 void MCU::stop() {
     Serial.println("Stopping engine " + String(channel));
     esc.stop();
+    currentThrottle = 0.0F;
 }
 
 void MCU::test() {
