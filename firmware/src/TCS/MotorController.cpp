@@ -2,38 +2,54 @@
 #include "ESCDriver.h"
 #include "MotorController.h"
 
-MCU::MCU(ESCDriver *esc, float minThrottle, float maxThrottle)
-    : esc(esc), minThrottle(minThrottle), maxThrottle(maxThrottle) {}
-
-void MCU::begin() {
-    esc->begin();
-    disarm();
-}
+MCU::MCU(int pin, int channel, int minPulsewidth, int maxPulsewidth)
+    : esc(pin, channel, minPulsewidth), channel(channel),
+      minPulsewidth(minPulsewidth), maxPulsewidth(maxPulsewidth) {}
 
 void MCU::arm() {
-    esc->arm();
-    esc->write(minThrottle);
+    Serial.println("Arming engine " + String(channel));
+    esc.stop();
     armed = true;
 }
 
 void MCU::disarm() {
-    esc->disarm();
-    currentThrottle = 0.0F;
+    Serial.println("Disarming engine " + String(channel));
+    esc.stop();
     armed = false;
 }
 
-void MCU::setThrottle(float value) {
+void MCU::setThrottle(float throttle) {
     if (!armed) {
+        Serial.println("Engine " + String(channel) + " is disarmed!");
+        stop();
         return;
     }
-    value = constrain(value, 0.0F, 1.0F);
-    value = minThrottle + value * (maxThrottle - minThrottle);
-    currentThrottle = value;
-    auto pulseWidth = static_cast<float>(
-        map(static_cast<long>(value), 0, 100, minPulseWidth, maxPulseWidth));
-    esc->write(pulseWidth);
+
+    Serial.println("Setting engine " + String(channel) + " to " +
+                   String(throttle) + "% throttle");
+    float pulsewidth = map(throttle, 0, 100, minPulsewidth, maxPulsewidth);
+    esc.write(pulsewidth);
+    currentThrottle = throttle;
 }
 
-float MCU::getThrottle() const { return currentThrottle; }
+void MCU::stop() {
+    Serial.println("Stopping engine " + String(channel));
+    esc.stop();
+    currentThrottle = 0.0F;
+}
 
-bool MCU::isArmed() const { return armed; }
+void MCU::test() {
+    Serial.println("Testing engine " + String(channel));
+    arm();
+    delay(5000);
+    setThrottle(20);
+    delay(5000);
+    stop();
+    delay(5000);
+    setThrottle(20);
+    delay(5000);
+    disarm();
+    setThrottle(20);
+    delay(1500);
+    Serial.println("Testing for engine " + String(channel) + " finished!");
+}

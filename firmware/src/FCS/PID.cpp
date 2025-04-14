@@ -3,17 +3,6 @@
 
 PID::PID(float p_, float i_, float d_) : p(p_), i(i_), d(d_) {};
 
-void PID::begin() {
-    xTaskCreatePinnedToCore(pidTask,   // task function
-                            "pidTask", // name
-                            4096,      // stack size
-                            this,      // parameters
-                            1,         // priority
-                            nullptr,   // task handle
-                            1          // core (1 = avoid Wi-Fi core)
-    );
-}
-
 void PID::tune(float p_, float i_, float d_) {
     p = p_;
     i = i_;
@@ -34,7 +23,7 @@ void PID::reset() {
 // NOLINTBEGIN(readability-identifier-naming)
 float PID::calc(float setpoint, float input) {
     unsigned long now = micros();
-    auto dt = static_cast<float>((now - lastMicros)) / 1e6F;
+    long dt = (now - lastMicros) / 1e6F;
     lastMicros = now;
 
     if (dt <= 0.0F || dt > 1.0F) {
@@ -58,15 +47,3 @@ float PID::calc(float setpoint, float input) {
     return constrain(output, min, max);
 }
 // NOLINTEND(readability-identifier-naming)
-
-void PID::pidTask(void *pvParameters) {
-    PID *self = static_cast<PID *>(pvParameters); // cast back to instance
-
-    const TickType_t xFrequency = pdMS_TO_TICKS(2);
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-
-    while (true) {
-        self->output = self->calc(self->setpoint, self->input);
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    }
-}

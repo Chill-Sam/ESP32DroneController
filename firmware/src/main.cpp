@@ -1,31 +1,14 @@
+#include "Arduino.h"
 #include "FCS/FlightController.h"
-#include "Network/ControllerLink.h"
-#include "Safety/DroneState.h"
 
 #define WIFI_SSID ""
-#define PASSWORD ""
+#define WIFI_PASSWORD ""
 #define WEBSOCKET ""
 
-namespace {
-
-DroneState state;
-ControllerLink rc(WIFI_SSID, PASSWORD, WEBSOCKET);
-FCS fcs(26, 25, 33, 32, &state, &rc);
-
-} // namespace
+FCS fcs(26, 25, 33, 32, 1000, 2000, WIFI_SSID, WIFI_PASSWORD, WEBSOCKET);
 
 void setup() {
     Serial.begin(115200);
     Serial.println("Starting");
     fcs.begin();
-}
-
-void loop() {
-    if (!state.shouldFly()) {
-        return;
-    }
-
-    // TODO: Run safety system
-    // TODO: Get controls from Network
-    // TODO: Update FCS
 }

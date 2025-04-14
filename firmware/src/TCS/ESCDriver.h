@@ -1,24 +1,20 @@
 #pragma once
 
-#include <cstdint>
-
 class ESCDriver {
   public:
-    ESCDriver(int pwmPin, uint8_t channel);
+    ESCDriver(int pwmPin, int channel, int minPulsewidth);
 
-    void begin();
-    void arm();
-    void disarm();
-    void write(float pulseWidth);
+    void write(float pulsewidth);
+    void stop();
 
   private:
     int pwmPin;
-    uint8_t channel;
-    bool isArmed = false;
+    int channel;
 
-    // NOTE: Switch to DShot ??
-    int frequency = 50;  ///< PWM frequency.
-    int resolution = 16; ///< PWM resolution.
+    int frequency = 50;
+    int resolution = 16;
 
-    float pulseWidthToDutyCycle(float pulseWidth) const;
+    int minPulsewidth;
+
+    float pulseWidthToDutyCycle(float pulsewidth) const;
 };

@@ -8,6 +8,7 @@ struct Orientation {
     float pitch = 0.0F;
     float roll = 0.0F;
     float yaw = 0.0F;
+    float alt = 0.0F;
 };
 
 class AHRS {

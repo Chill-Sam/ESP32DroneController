@@ -1,34 +1,71 @@
 #pragma once
 
 #include "AHRS/AHRS.h"
-#include "Network/ControllerLink.h"
 #include "PID.h"
-#include "Safety/DroneState.h"
 #include "TCS/ThrustController.h"
+
+enum class FlightMode : uint8_t { DISARMED, ARMED, FAILSAFE };
+
+struct ThrottleState {
+    float ThrottleA = 0.0F;
+    float ThrottleB = 0.0F;
+    float ThrottleC = 0.0F;
+    float ThrottleD = 0.0F;
+};
+
+struct ArmState {
+    bool ArmedA = false;
+    bool ArmedB = false;
+    bool ArmedC = false;
+    bool ArmedD = false;
+};
+
+struct SetpointState {
+    float setpointPitch = 0.0F;
+    float setpointRoll = 0.0F;
+    float setpointYaw = 0.0F;
+    float setpointAltitude = 0.0F;
+};
+
+struct RCArmingState {
+    bool RCArmedA = false;
+    bool RCArmedB = false;
+    bool RCArmedC = false;
+    bool RCArmedD = false;
+};
+
+struct DroneState {
+    // Onboard Controlled
+    FlightMode flightMode = FlightMode::DISARMED;
+    Orientation orientation;
+    ThrottleState throttleState;
+    ArmState armState;
+
+    // Remote Controlled
+    SetpointState setpointState;
+    RCArmingState rcArmingState;
+};
 
 class FCS {
   public:
-    FCS(int pinA, int pinB, int pinC, int pinD, DroneState *state,
-        ControllerLink *rc);
+    FCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,
+        int maxPulsewidth, const char *ssid, const char *password,
+        const char *websocket);
 
     void begin();
-    void arm();
-    void disarm();
-    void update();
 
   private:
-    void updateOrientation();
-    static void fcsTask(void *pvParameters);
-
+    DroneState state;
     AHRS ahrs;
     TCS tcs;
-    bool armed = false;
 
-    Orientation orientation;
-    DroneState *state;
-    ControllerLink *rc;
+    PID pidPitch{1.0F, 1.0F, 1.0F};
+    PID pidRoll{1.0F, 1.0F, 1.0F};
+    PID pidYaw{1.0F, 1.0F, 1.0F};
 
-    PID pidPitch{1.0, 1.0, 1.0};
-    PID pidRoll{1.0, 1.0, 1.0};
-    PID pidYaw{1.0, 1.0, 1.0};
+    void updateOrientation();
+    void updateThrottleState();
+    void updateArmState();
+
+    static void update(void *pvParameters);
 };

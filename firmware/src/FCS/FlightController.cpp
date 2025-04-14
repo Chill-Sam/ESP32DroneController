@@ -1,61 +1,55 @@
+#include "Arduino.h"
 #include "FlightController.h"
-#include "Network/ControllerLink.h"
-#include "Safety/DroneState.h"
 
-FCS::FCS(int pinA, int pinB, int pinC, int pinD, DroneState *state,
-         ControllerLink *rc)
-    : tcs(pinA, pinB, pinC, pinD), state(state), rc(rc) {}
-
-void FCS::begin() {
-    tcs.begin();
+FCS::FCS(int pinA, int pinB, int pinC, int pinD, int minPulseWidth,
+         int maxPulsewidth, const char *ssid, const char *password,
+         const char *websocket)
+    : tcs(pinA, pinB, pinC, pinD, minPulseWidth, maxPulsewidth) {
     ahrs.init();
-    pidPitch.begin();
-    pidRoll.begin();
-    pidYaw.begin();
-
-    xTaskCreatePinnedToCore(fcsTask, "FCU", 4096, this, 1, nullptr, 1);
-}
-
-void FCS::arm() {
-    tcs.arm();
-    armed = true;
-}
-
-void FCS::disarm() {
-    tcs.disarm();
-    armed = false;
 }
 
 void FCS::updateOrientation() {
-    orientation.pitch = ahrs.pitch;
-    orientation.roll = ahrs.roll;
-    orientation.yaw = ahrs.yaw;
+    state.orientation.pitch = ahrs.pitch;
+    state.orientation.roll = ahrs.roll;
+    state.orientation.yaw = ahrs.yaw;
 }
 
-void FCS::update() {
-    if (state->isFailsafe() || !state->isArmed()) {
-        return;
-    }
-
-    TCSState thrustState = tcs.getTCSState();
-
-    // TODO:
-    // Calculate setpoints
-    // Set PID to setpoints
-    // Calculate PID based on orientation
-    // Set speed of engines via TCS
-
-    rc->sendTelemetry(*state, thrustState);
+void FCS::updateThrottleState() {
+    state.throttleState.ThrottleA = tcs.getThrottle(1);
+    state.throttleState.ThrottleB = tcs.getThrottle(2);
+    state.throttleState.ThrottleC = tcs.getThrottle(3);
+    state.throttleState.ThrottleD = tcs.getThrottle(4);
 }
 
-void FCS::fcsTask(void *pvParameters) {
+void FCS::updateArmState() {
+    state.armState.ArmedA = tcs.isArmed(1);
+    state.armState.ArmedB = tcs.isArmed(2);
+    state.armState.ArmedC = tcs.isArmed(3);
+    state.armState.ArmedD = tcs.isArmed(4);
+}
+
+void FCS::begin() {
+    xTaskCreatePinnedToCore(update, "FCU", 4096, this, 1, nullptr, 1);
+}
+
+void FCS::update(void *pvParameters) {
     FCS *fcs = static_cast<FCS *>(pvParameters);
 
     const TickType_t rate = pdMS_TO_TICKS(2); // 500 Hz
     TickType_t last = xTaskGetTickCount();
 
     while (true) {
-        fcs->update(); // routes AHRS data to PIDs, processes controller input
-        vTaskDelayUntil(&last, rate);
+        // TODO:
+        // Get current RC status
+
+        // Update State
+        fcs->updateOrientation();
+        fcs->updateThrottleState();
+        fcs->updateArmState();
+
+        // TODO:
+        // Update PIDs
+        // Decide on action based on state
+        // Execute action
     }
 }
