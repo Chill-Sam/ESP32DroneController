@@ -29,7 +29,24 @@ void FCS::updateArmState() {
 }
 
 void FCS::begin() {
+    arm();
     xTaskCreatePinnedToCore(update, "FCU", 4096, this, 1, nullptr, 1);
+}
+void FCS::arm() {
+    if (state.flightMode == FlightMode::FAILSAFE) {
+        Serial.println("DRONE IS FAILSAFED");
+        return;
+    }
+
+    state.flightMode = FlightMode::ARMED;
+}
+void FCS::disarm() {
+    if (state.flightMode == FlightMode::FAILSAFE) {
+        Serial.println("DRONE IS FAILSAFED");
+        return;
+    }
+
+    state.flightMode = FlightMode::DISARMED;
 }
 
 void FCS::update(void *pvParameters) {
@@ -39,6 +56,13 @@ void FCS::update(void *pvParameters) {
     TickType_t last = xTaskGetTickCount();
 
     while (true) {
+        if (fcs->state.flightMode == FlightMode::FAILSAFE) {
+            Serial.println("DRONE IS FAILSAFED");
+            fcs->tcs.disarm();
+            vTaskDelayUntil(&last, rate);
+            continue;
+        }
+
         // TODO:
         // Get current RC status
 
@@ -51,5 +75,7 @@ void FCS::update(void *pvParameters) {
         // Update PIDs
         // Decide on action based on state
         // Execute action
+
+        vTaskDelayUntil(&last, rate);
     }
 }

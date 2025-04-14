@@ -67,5 +67,8 @@ class FCS {
     void updateThrottleState();
     void updateArmState();
 
+    void arm();
+    void disarm();
+
     static void update(void *pvParameters);
 };
