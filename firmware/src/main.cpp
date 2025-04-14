@@ -1,31 +1,12 @@
-#include "FCS/FlightController.h"
-#include "Network/ControllerLink.h"
-#include "Safety/DroneState.h"
+#include "Arduino.h"
+#include "TCS/ThrustController.h"
 
-#define WIFI_SSID ""
-#define PASSWORD ""
-#define WEBSOCKET ""
-
-namespace {
-
-DroneState state;
-ControllerLink rc(WIFI_SSID, PASSWORD, WEBSOCKET);
-FCS fcs(26, 25, 33, 32, &state, &rc);
-
-} // namespace
+TCS tcs(26, 25, 33, 32, 1000, 2000);
 
 void setup() {
     Serial.begin(115200);
     Serial.println("Starting");
-    fcs.begin();
+    tcs.test();
 }
 
-void loop() {
-    if (!state.shouldFly()) {
-        return;
-    }
-
-    // TODO: Run safety system
-    // TODO: Get controls from Network
-    // TODO: Update FCS
-}
+void loop() {}

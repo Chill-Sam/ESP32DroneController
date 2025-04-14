@@ -14,6 +14,7 @@ Checks: >
   -cppcoreguidelines-no-malloc,
   -cppcoreguidelines-non-private-member-variables-in-classes,
   -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-narrowing-conversions,
   -clang-analyzer-optin.performance.Padding,
   -modernize-use-trailing-return-type,
   -modernize-deprecated-headers,
@@ -21,6 +22,7 @@ Checks: >
   -readability-magic-numbers,
   -readability-isolate-declaration,
   -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
   -misc-non-private-member-variables-in-classes
 
 HeaderFilterRegex: '.*'

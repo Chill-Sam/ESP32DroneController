@@ -4,22 +4,21 @@
 
 class MCU {
   public:
-    MCU(ESCDriver *esc, float minThrottle = 0.05F, float maxThrottle = 1.0F);
+    MCU(int pin, int channel, int minPulsewidth, int maxPulsewidth);
 
-    void begin();
     void arm();
     void disarm();
-    void setThrottle(float value);
-    float getThrottle() const;
-    bool isArmed() const;
+    void setThrottle(float throttle);
+    void stop();
+    void test();
 
-  private:
-    ESCDriver *esc;
-    float currentThrottle = 0.0F;
-    float minThrottle;
-    float maxThrottle;
     bool armed = false;
 
-    int minPulseWidth = 1000;
-    int maxPulseWidth = 2000;
+  private:
+    int minPulsewidth;
+    int maxPulsewidth;
+
+    int channel;
+
+    ESCDriver esc;
 };

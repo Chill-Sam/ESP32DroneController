@@ -2,43 +2,25 @@
 
 #include "MotorController.h"
 
-struct TCSState {
-    bool armed;
-
-    float throttleA;
-    float throttleB;
-    float throttleC;
-    float throttleD;
-};
-
 class TCS {
   public:
-    TCS(int pinA, int pinB, int pinC, int pinD);
+    TCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,
+        int maxPulsewidth);
 
-    void begin();
     void arm();
+    void armMotor(int motor);
     void disarm();
-    int setThrottle(int motor, float throttle);
-
-    void testEngines(float throttle = 0.2);
-
-    TCSState getTCSState();
+    void disarmMotor(int motor);
+    void throttle(int motor, float throttle);
+    void stop();
+    void test();
+    void testMotor(int motor);
 
   private:
-    bool armed = false;
+    MCU engineA;
+    MCU engineB;
+    MCU engineC;
+    MCU engineD;
 
-    int pinA;
-    int pinB;
-    int pinC;
-    int pinD;
-
-    MCU m1 = nullptr;
-    MCU m2 = nullptr;
-    MCU m3 = nullptr;
-    MCU m4 = nullptr;
-
-    float throttleA = 0;
-    float throttleB = 0;
-    float throttleC = 0;
-    float throttleD = 0;
+    MCU intToEngine(int motor);
 };
