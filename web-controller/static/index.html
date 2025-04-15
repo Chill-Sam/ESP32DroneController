@@ -3,28 +3,167 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>JWahrenberg - Controller</title>
+        <title>CX LABS</title>
         <link href="dist/output.css" rel="stylesheet" />
         <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+        <script src="scripts/joy.js"></script>
     </head>
     <body
         class="bg-gray-900 text-gray-50 p-5 overflow-hidden w-screen h-screen flex flex-col"
     >
-        <div class="font-bold text-2xl h-10 grid grid-cols-2">
+        <div class="overflow-hidden font-bold text-2xl h-10 grid grid-cols-2">
             Drone Controller
-            <img src="" alt="" class="h-30 justify-self-end -mt-15 w-auto" />
+            <div class="justify-self-end">CX Labs</div>
         </div>
-        <div class="grid grid-cols-4 gap-5 grow">
+        <div class="grid grid-cols-4 gap-5 grow overflow-hidden">
             <div
-                class="border-2 border-white rounded-l-xl rounded-r-md col-span-3 p-2 font-bold"
+                class="flex flex-col border-2 border-white rounded-l-xl rounded-r-md col-span-3 p-2 font-bold"
             >
-                Controls
+                <div class="flex flex-row grow">
+                    <div class="flex flex-col gap-5">
+                        Arming
+
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                value=""
+                                class="sr-only peer arming"
+                                id="arm-fcu"
+                            />
+                            <div
+                                class="relative w-18 h-9 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-800 rounded-full peer bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-8 after:w-8 after:transition-all border-gray-600 peer-checked:bg-red-600"
+                            ></div>
+                            <span class="ms-3 text-xl">Arm FCU</span>
+                        </label>
+                    </div>
+                    <div class="flex flex-col grow justify-around">
+                        <div class="text-center">Motor Arming</div>
+                        <div class="flex grow justify-around">
+                            <div class="flex flex-col justify-around">
+                                <label
+                                    class="inline-flex items-center cursor-pointer"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        value=""
+                                        class="sr-only peer arm-motor arming"
+                                        disabled
+                                    />
+                                    <div
+                                        class="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-gray-800 rounded-full peer bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all border-gray-600 peer-checked:bg-blue-600"
+                                    ></div>
+                                    <span class="ms-3 text-sm"
+                                        >Arm M1</span
+                                    > </label
+                                ><label
+                                    class="inline-flex items-center cursor-pointer"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        value=""
+                                        class="sr-only peer arm-motor arming"
+                                        disabled
+                                    />
+                                    <div
+                                        class="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-gray-800 rounded-full peer bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all border-gray-600 peer-checked:bg-blue-600"
+                                    ></div>
+                                    <span class="ms-3 text-sm">Arm M2</span>
+                                </label>
+                            </div>
+                            <div class="flex flex-col justify-around">
+                                <label
+                                    class="inline-flex items-center cursor-pointer"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        value=""
+                                        class="sr-only peer arm-motor arming"
+                                        disabled
+                                    />
+                                    <div
+                                        class="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-gray-800 rounded-full peer bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all border-gray-600 peer-checked:bg-blue-600"
+                                    ></div>
+                                    <span class="ms-3 text-sm"
+                                        >Arm M3</span
+                                    > </label
+                                ><label
+                                    class="inline-flex items-center cursor-pointer"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        value=""
+                                        class="sr-only peer arm-motor arming"
+                                        disabled
+                                    />
+                                    <div
+                                        class="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-gray-800 rounded-full peer bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all border-gray-600 peer-checked:bg-blue-600"
+                                    ></div>
+                                    <span class="ms-3 text-sm">Arm M4</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-5 mr-2.5">
+                        Testing
+                        <button
+                            type="button"
+                            class="bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-700 rounded-full text-sm py-2 border-gray-700"
+                        >
+                            TCS
+                        </button>
+                    </div>
+                </div>
+                <div class="flex flex-row grow">
+                    <div
+                        id="JoystickLeft"
+                        class="w-35 h-35 self-end justify-self-start"
+                    ></div>
+                    <div class="flex flex-col items-center justify-center grow">
+                        <label for="password" class="block mb-2 text-sm"
+                            >Password</label
+                        >
+                        <input
+                            type="password"
+                            id="password"
+                            class="border text-sm rounded-lg block w-35 p-2.5 bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="•••••••••"
+                            required
+                        />
+                    </div>
+                    <div
+                        id="JoystickRight"
+                        class="w-35 h-35 self-end justify-self-end"
+                    ></div>
+                </div>
             </div>
             <div
-                class="border-2 border-white rounded-r-xl rounded-l-md p-2 font-bold"
+                class="flex flex-col grow border-2 border-white rounded-r-xl rounded-l-md p-2 font-bold text-xl"
             >
-                Telemetry
+                <div class="flex flex-col grow text-base">
+                    <div class="flex text-base grow">
+                        Flight Mode: CONNECTING
+                    </div>
+                    <div class="grow">
+                        Orientation
+                        <div class="text-sm grid grid-cols-2 grid-rows-2">
+                            <div>Pitch: None</div>
+                            <div>Roll: None</div>
+                            <div>Yaw: None</div>
+                            <div>Alt: None</div>
+                        </div>
+                    </div>
+                    <div class="grow">
+                        Throttle State
+                        <div class="text-sm grid grid-cols-2 grid-rows-2">
+                            <div>M1: None</div>
+                            <div>M2: None</div>
+                            <div>M3: None</div>
+                            <div>M4: None</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+        <script src="scripts/main.js"></script>
     </body>
 </html>

@@ -11,3 +11,7 @@ target/
 
 # NPM
 node_modules/
+
+# Others
+certs/
+.env
