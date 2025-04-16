@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AHRS/AHRS.h"
+#include "Network/ControllerLink.h"
 #include "PID.h"
 #include "TCS/ThrustController.h"
 
@@ -49,15 +50,16 @@ struct DroneState {
 class FCS {
   public:
     FCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,
-        int maxPulsewidth, const char *ssid, const char *password,
-        const char *websocket);
+        int maxPulsewidth);
 
     void begin();
+    void loopWS() { rc.loopWS(); }
 
   private:
     DroneState state;
     AHRS ahrs;
     TCS tcs;
+    ControllerLink rc;
 
     PID pidPitch{1.0F, 1.0F, 1.0F};
     PID pidRoll{1.0F, 1.0F, 1.0F};

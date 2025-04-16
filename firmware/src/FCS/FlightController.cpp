@@ -2,10 +2,9 @@
 #include "FlightController.h"
 
 FCS::FCS(int pinA, int pinB, int pinC, int pinD, int minPulseWidth,
-         int maxPulsewidth, const char *ssid, const char *password,
-         const char *websocket)
+         int maxPulsewidth)
     : tcs(pinA, pinB, pinC, pinD, minPulseWidth, maxPulsewidth) {
-    ahrs.init();
+    //    ahrs.init();
 }
 
 void FCS::updateOrientation() {
@@ -30,7 +29,7 @@ void FCS::updateArmState() {
 
 void FCS::begin() {
     arm();
-    xTaskCreatePinnedToCore(update, "FCU", 4096, this, 1, nullptr, 1);
+    xTaskCreatePinnedToCore(update, "FCU", 4096, this, 2, nullptr, 1);
 }
 void FCS::arm() {
     if (state.flightMode == FlightMode::FAILSAFE) {

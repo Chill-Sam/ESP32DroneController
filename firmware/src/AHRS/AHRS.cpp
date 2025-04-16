@@ -19,7 +19,7 @@ void AHRS::init() {
                             "SensorFusion", // name
                             4096,           // stack size
                             this,           // parameters
-                            1,              // priority
+                            3,              // priority
                             nullptr,        // task handle
                             1               // core (1 = avoid Wi-Fi core)
     );
