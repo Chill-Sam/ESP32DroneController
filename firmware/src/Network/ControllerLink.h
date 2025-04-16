@@ -29,6 +29,7 @@ class ControllerLink {
 
     SetpointState setpointState;
     RCArmingState armingState;
+    bool shouldTest = false;
 
   private:
     WebSocketsClient client;

@@ -36,6 +36,7 @@ void ControllerLink::handlePayload(uint8_t *payload) {
 
     const char *nonce = json["nonce"];
     const char *authstatus = json["status"];
+    const char *command = json["type"];
 
     if (nonce != nullptr) {
         Serial.println("Attempting authentication");
@@ -52,6 +53,13 @@ void ControllerLink::handlePayload(uint8_t *payload) {
     } else if (authstatus != nullptr) {
         Serial.println("Successfully authenticated!");
         authenticated = true;
+
+    } else if (command != nullptr) {
+        int test = json["payload"]["test"];
+        if (test == 1 && !shouldTest) {
+            Serial.println("Test command recieved");
+            shouldTest = true;
+        }
     }
 }
 
@@ -65,7 +73,7 @@ void ControllerLink::webSocketEvent(WStype_t type, uint8_t *payload,
         Serial.println("[WSS] Connected");
         break;
     case WStype_TEXT:
-        Serial.printf("[WSS] Got message: %s\n", payload);
+        // Serial.printf("[WSS] Got message: %s\n", payload);
         handlePayload(payload);
         break;
     default:

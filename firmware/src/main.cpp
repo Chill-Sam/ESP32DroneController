@@ -10,4 +10,7 @@ void setup() {
     fcs->begin();
 }
 
-void loop() { fcs->loopWS(); }
+void loop() {
+    fcs->loopWS();
+    delay(20);
+}

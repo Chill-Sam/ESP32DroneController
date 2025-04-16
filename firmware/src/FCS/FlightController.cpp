@@ -75,6 +75,12 @@ void FCS::update(void *pvParameters) {
         fcs->updateThrottleState();
         fcs->updateArmState();
 
+        if (fcs->rc.shouldTest) {
+            Serial.println("Should Test");
+            fcs->tcs.test();
+            fcs->rc.shouldTest = false;
+        }
+
         // TODO:
         // Update PIDs
         // Decide on action based on state
