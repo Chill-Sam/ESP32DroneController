@@ -1,5 +1,7 @@
 #include "Arduino.h"
 #include "FlightController.h"
+#include "freertos/portmacro.h"
+#include "freertos/projdefs.h"
 
 FCS::FCS(int pinA, int pinB, int pinC, int pinD, int minPulseWidth,
          int maxPulsewidth)
@@ -27,9 +29,15 @@ void FCS::updateArmState() {
     state.armState.ArmedD = tcs.isArmed(4);
 }
 
+void FCS::updateControls() {
+    state.rcArmingState = rc.armingState;
+    state.setpointState = rc.setpointState;
+}
+
 void FCS::begin() {
     arm();
     xTaskCreatePinnedToCore(update, "FCU", 4096, this, 2, nullptr, 1);
+    xTaskCreatePinnedToCore(telemetry, "telemetry", 4096, this, 0, nullptr, 0);
 }
 void FCS::arm() {
     if (state.flightMode == FlightMode::FAILSAFE) {
@@ -62,9 +70,6 @@ void FCS::update(void *pvParameters) {
             continue;
         }
 
-        // TODO:
-        // Get current RC status
-
         // Update State
         fcs->updateOrientation();
         fcs->updateThrottleState();
@@ -75,6 +80,19 @@ void FCS::update(void *pvParameters) {
         // Decide on action based on state
         // Execute action
 
+        vTaskDelayUntil(&last, rate);
+    }
+}
+
+void FCS::telemetry(void *pvParameters) {
+    FCS *fcs = static_cast<FCS *>(pvParameters);
+
+    const TickType_t rate = pdMS_TO_TICKS(1000); // 1 Hz
+    TickType_t last = xTaskGetTickCount();
+
+    while (true) {
+        fcs->rc.sendTelemetry(fcs->state.flightMode, fcs->state.throttleState,
+                              fcs->state.orientation);
         vTaskDelayUntil(&last, rate);
     }
 }

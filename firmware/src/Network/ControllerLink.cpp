@@ -1,6 +1,9 @@
+#include "Arduino.h"
 #include "ControllerLink.h"
+#include "TCS/ThrustController.h"
 #include "WebSocketsClient.h"
 #include "WiFi.h"
+#include "mbedtls/md.h"
 
 #define WIFI_SSID ""
 #define WIFI_PASSWORD ""
@@ -32,11 +35,23 @@ void ControllerLink::handlePayload(uint8_t *payload) {
     deserializeJson(json, payload);
 
     const char *nonce = json["nonce"];
+    const char *authstatus = json["status"];
 
     if (nonce != nullptr) {
         Serial.println("Attempting authentication");
         String reply = computeHMACSHA256(SECRET_PASS, nonce);
-        client.sendTXT(R"({"role":"drone","signature":")" + reply + "\"}");
+        JsonDocument response;
+        response["role"] = "drone";
+        response["signature"] = reply;
+
+        String output;
+        serializeJson(response, output);
+
+        client.sendTXT(output);
+
+    } else if (authstatus != nullptr) {
+        Serial.println("Successfully authenticated!");
+        authenticated = true;
     }
 }
 
@@ -56,6 +71,50 @@ void ControllerLink::webSocketEvent(WStype_t type, uint8_t *payload,
     default:
         break;
     }
+}
+
+void ControllerLink::sendTelemetry(FlightMode flightMode,
+                                   ThrottleState throttleState,
+                                   Orientation orientation) {
+    if (!authenticated) {
+        return;
+    }
+
+    String mode;
+    switch (flightMode) {
+    case FlightMode::DISARMED:
+        mode = "DISARMED";
+    case FlightMode::ARMED:
+        mode = "ARMED";
+    case FlightMode::FAILSAFE:
+        mode = "FAILSAFE";
+    default:
+        mode = "UNKNOWN";
+    }
+
+    JsonDocument msg;
+
+    msg["type"] = "telemetry";
+
+    JsonObject payload = msg["payload"].to<JsonObject>();
+    payload["FlightMode"] = mode;
+
+    JsonArray jsonThrottleState = payload["ThrottleState"].to<JsonArray>();
+    jsonThrottleState.add(throttleState.ThrottleA);
+    jsonThrottleState.add(throttleState.ThrottleB);
+    jsonThrottleState.add(throttleState.ThrottleC);
+    jsonThrottleState.add(throttleState.ThrottleD);
+
+    JsonArray jsonOrientation = payload["Orientation"].to<JsonArray>();
+    jsonOrientation.add(orientation.pitch);
+    jsonOrientation.add(orientation.roll);
+    jsonOrientation.add(orientation.yaw);
+    jsonOrientation.add(orientation.alt);
+
+    String output;
+    serializeJson(msg, output);
+
+    client.sendTXT(output);
 }
 
 String ControllerLink::computeHMACSHA256(const String &key,
