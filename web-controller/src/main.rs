@@ -27,7 +27,7 @@ async fn main() -> std::io::Result<()> {
             .route("/echo", web::get().to(echo))
             .service(Files::new("/", "./static").index_file("index.html"))
     })
-    .bind_openssl("127.0.0.1:8443", builder)?
+    .bind_openssl("0.0.0.0:8443", builder)?
     .run()
     .await
 }
