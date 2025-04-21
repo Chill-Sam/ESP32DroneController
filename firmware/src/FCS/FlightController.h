@@ -27,7 +27,6 @@ class FCS {
 
   private:
     DroneState state;
-    DroneState oldState;
     AHRS ahrs;
     TCS tcs;
     ControllerLink rc;
@@ -43,6 +42,7 @@ class FCS {
 
     void arm();
     void disarm();
+    void failsafe();
 
     static void update(void *pvParameters);
     static void telemetry(void *pvParameters);

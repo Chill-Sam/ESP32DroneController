@@ -13,6 +13,7 @@ struct SetpointState {
 };
 
 struct RCArmingState {
+    bool RCArmedFCU = false;
     bool RCArmedA = false;
     bool RCArmedB = false;
     bool RCArmedC = false;
@@ -24,16 +25,17 @@ class ControllerLink {
     ControllerLink();
 
     void loopWS() { client.loop(); }
-    void sendTelemetry(FlightMode flightMode, ThrottleState throttleState,
-                       Orientation orientation);
+    void updateTelemetry(FlightMode flightMode, ThrottleState throttleState,
+                         Orientation orientation);
 
     SetpointState setpointState;
     RCArmingState armingState;
     bool shouldTest = false;
+    bool authenticated = false;
 
   private:
     WebSocketsClient client;
-    bool authenticated = false;
+    String tlm = "";
 
     void handlePayload(uint8_t *payload);
     void webSocketEvent(WStype_t type, uint8_t *payload, size_t length);

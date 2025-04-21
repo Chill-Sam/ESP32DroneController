@@ -23,27 +23,50 @@ void PID::reset() {
 // NOLINTBEGIN(readability-identifier-naming)
 float PID::calc(float setpoint, float input) {
     unsigned long now = micros();
-    long dt = (now - lastMicros) / 1e6F;
-    lastMicros = now;
 
-    if (dt <= 0.0F || dt > 1.0F) {
-        return 0.0F; // prevent crazy values
+    // First‐call guard
+    if (lastMicros == 0UL) {
+        lastMicros = now;
+        previousError = setpoint - input;
+        return 0.0F;
     }
 
+    // dt in _seconds_
+    float dt = (now - lastMicros) * 1e-6F;
+    lastMicros = now;
+
+    // Basic sanity check: skip I & D if dt is bogus,
+    // but still apply P so the loop doesn't go dead.
+    bool valid = (dt > 0.0F && dt < 1.0F);
+
     float error = setpoint - input;
+    float P = p * error; // proportional term
 
-    float P = p * error;
-
-    integral += error * dt;
+    // Integral term (only if dt sane)
+    if (valid) {
+        integral += error * dt;
+        // anti‑windup: clamp integral within output bounds
+        if (integral * i > max) {
+            integral = max / i;
+        } else if (integral * i < min) {
+            integral = min / i;
+        }
+    }
     float I = i * integral;
 
-    float derivative = (error - previousError) / dt;
-    float D = d * derivative;
+    // Derivative term (only if dt sane)
+    float D = 0.0F;
+    if (valid) {
+        float derivative = (error - previousError) / dt;
+        D = d * derivative;
+    }
 
     previousError = error;
 
+    // Compute and constrain final output
     float output = P + I + D;
-
-    return constrain(output, min, max);
+    output = constrain(output, min, max);
+    Serial.println(output);
+    return output;
 }
 // NOLINTEND(readability-identifier-naming)

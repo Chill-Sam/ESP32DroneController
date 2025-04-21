@@ -12,6 +12,8 @@
 #define URI "/EXAMPLE"
 #define SECRET_PASS ""
 
+#define CONTROL_ANGLE 20
+
 ControllerLink::ControllerLink() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     Serial.print("Connecting to WiFi");
@@ -60,6 +62,28 @@ void ControllerLink::handlePayload(uint8_t *payload) {
             Serial.println("Test command recieved");
             shouldTest = true;
         }
+
+        float lx = json["payload"]["joysticks"]["left"][0];
+        float ly = json["payload"]["joysticks"]["left"][1];
+
+        float rx = json["payload"]["joysticks"]["right"][0];
+        float ry = json["payload"]["joysticks"]["right"][1];
+
+        setpointState.setpointPitch = map(constrain(ry, -100, 100), -100, 100,
+                                          -CONTROL_ANGLE, CONTROL_ANGLE);
+        setpointState.setpointRoll = map(constrain(rx, -100, 100), -100, 100,
+                                         -CONTROL_ANGLE, CONTROL_ANGLE);
+        setpointState.setpointYaw = map(constrain(lx, -100, 100), -100, 100,
+                                        -CONTROL_ANGLE, CONTROL_ANGLE);
+
+        JsonArray payloadArming = json["payload"]["arming"];
+        armingState.RCArmedFCU = payloadArming[0];
+        armingState.RCArmedA = payloadArming[1];
+        armingState.RCArmedB = payloadArming[2];
+        armingState.RCArmedC = payloadArming[3];
+        armingState.RCArmedD = payloadArming[4];
+
+        client.sendTXT(tlm);
     }
 }
 
@@ -81,9 +105,9 @@ void ControllerLink::webSocketEvent(WStype_t type, uint8_t *payload,
     }
 }
 
-void ControllerLink::sendTelemetry(FlightMode flightMode,
-                                   ThrottleState throttleState,
-                                   Orientation orientation) {
+void ControllerLink::updateTelemetry(FlightMode flightMode,
+                                     ThrottleState throttleState,
+                                     Orientation orientation) {
     if (!authenticated) {
         return;
     }
@@ -122,7 +146,7 @@ void ControllerLink::sendTelemetry(FlightMode flightMode,
     String output;
     serializeJson(msg, output);
 
-    client.sendTXT(output);
+    tlm = output;
 }
 
 String ControllerLink::computeHMACSHA256(const String &key,

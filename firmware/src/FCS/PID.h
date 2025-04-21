@@ -13,7 +13,6 @@ class PID {
     void reset();
 
   private:
-    static void pidTask(void *pvParameters);
     float p, i, d;
 
     float integral = 0.0F;

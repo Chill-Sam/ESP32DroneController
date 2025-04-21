@@ -1,12 +1,11 @@
 #include "Arduino.h"
 #include "FlightController.h"
-#include "freertos/portmacro.h"
-#include "freertos/projdefs.h"
+#include "TCS/ThrustController.h"
 
 FCS::FCS(int pinA, int pinB, int pinC, int pinD, int minPulseWidth,
          int maxPulsewidth)
     : tcs(pinA, pinB, pinC, pinD, minPulseWidth, maxPulsewidth) {
-    //    ahrs.init();
+    ahrs.init();
 }
 
 void FCS::updateOrientation() {
@@ -37,11 +36,11 @@ void FCS::updateControls() {
 void FCS::begin() {
     arm();
     xTaskCreatePinnedToCore(update, "FCU", 4096, this, 2, nullptr, 1);
-    xTaskCreatePinnedToCore(telemetry, "telemetry", 4096, this, 0, nullptr, 0);
 }
 void FCS::arm() {
     if (state.flightMode == FlightMode::FAILSAFE) {
         Serial.println("DRONE IS FAILSAFED");
+        tcs.disarm();
         return;
     }
 
@@ -50,10 +49,17 @@ void FCS::arm() {
 void FCS::disarm() {
     if (state.flightMode == FlightMode::FAILSAFE) {
         Serial.println("DRONE IS FAILSAFED");
+        tcs.disarm();
         return;
     }
 
     state.flightMode = FlightMode::DISARMED;
+    tcs.disarm();
+}
+
+void FCS::failsafe() {
+    state.flightMode = FlightMode::FAILSAFE;
+    tcs.disarm();
 }
 
 void FCS::update(void *pvParameters) {
@@ -63,42 +69,81 @@ void FCS::update(void *pvParameters) {
     TickType_t last = xTaskGetTickCount();
 
     while (true) {
-        if (fcs->state.flightMode == FlightMode::FAILSAFE) {
-            Serial.println("DRONE IS FAILSAFED");
-            fcs->tcs.disarm();
+        if (!fcs->rc.authenticated) {
             vTaskDelayUntil(&last, rate);
             continue;
         }
+        // Update telemetry in the RC
+        fcs->rc.updateTelemetry(fcs->state.flightMode, fcs->state.throttleState,
+                                fcs->state.orientation);
 
         // Update State
         fcs->updateOrientation();
         fcs->updateThrottleState();
         fcs->updateArmState();
+        fcs->updateControls();
 
+        // Dont do anything if FAILSAFED
+        if (fcs->state.flightMode == FlightMode::FAILSAFE) {
+            Serial.println("DRONE IS FAILSAFED");
+            fcs->disarm();
+            vTaskDelayUntil(&last, rate);
+            continue;
+        }
+
+        // Test the drone
         if (fcs->rc.shouldTest) {
             Serial.println("Should Test");
             fcs->tcs.test();
             fcs->rc.shouldTest = false;
         }
 
-        // TODO:
         // Update PIDs
-        // Decide on action based on state
-        // Execute action
+        fcs->pidPitch.calc(fcs->state.setpointState.setpointPitch,
+                           fcs->state.orientation.pitch);
+        // fcs->pidRoll.calc(fcs->state.setpointState.setpointRoll,
+        // fcs->state.orientation.roll);
+        // fcs->pidYaw.calc(fcs->state.setpointState.setpointYaw,
+        // fcs->state.orientation.yaw);
 
-        vTaskDelayUntil(&last, rate);
-    }
-}
+        // Should FCS be armed?
+        if (fcs->state.rcArmingState.RCArmedFCU &&
+            fcs->state.flightMode == FlightMode::DISARMED) {
+            Serial.println("Arming FCU");
+            fcs->arm();
+        } else if (!fcs->state.rcArmingState.RCArmedFCU &&
+                   fcs->state.flightMode == FlightMode::ARMED) {
+            Serial.println("I am now disarming FCU");
+            fcs->disarm();
+        }
 
-void FCS::telemetry(void *pvParameters) {
-    FCS *fcs = static_cast<FCS *>(pvParameters);
+        // Is FCS disarmed?
+        if (fcs->state.flightMode == FlightMode::DISARMED) {
+            Serial.println("FCS is disarmed");
+            // fcs->tcs.disarm();
+            vTaskDelayUntil(&last, rate);
+            continue;
+        }
 
-    const TickType_t rate = pdMS_TO_TICKS(1000); // 1 Hz
-    TickType_t last = xTaskGetTickCount();
+        // Arm / Disarm motors
+        std::array<bool, 4> arming = {fcs->state.rcArmingState.RCArmedA,
+                                      fcs->state.rcArmingState.RCArmedB,
+                                      fcs->state.rcArmingState.RCArmedC,
+                                      fcs->state.rcArmingState.RCArmedD};
 
-    while (true) {
-        fcs->rc.sendTelemetry(fcs->state.flightMode, fcs->state.throttleState,
-                              fcs->state.orientation);
+        for (std::size_t i = 0; i < arming.size(); ++i) {
+            bool armed = arming[i];
+            int motorId = static_cast<int>(i) + 1; // yields 1,2,3,4
+            if (armed && fcs->tcs.isArmed(motorId)) {
+                fcs->tcs.armMotor(motorId);
+            } else if (!armed && fcs->tcs.isArmed(motorId)) {
+                fcs->tcs.disarmMotor(motorId);
+            }
+        }
+
+        // Set speeds
+        // Serial.println("Pitch PID: " + String(fcs->pidPitch.output));
+
         vTaskDelayUntil(&last, rate);
     }
 }
