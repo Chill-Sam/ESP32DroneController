@@ -1,23 +1,6 @@
 #pragma once
 
 #include "MotorController.h"
-#include <cstdint>
-
-enum class FlightMode : uint8_t { DISARMED, ARMED, FAILSAFE };
-
-struct ThrottleState {
-    float ThrottleA = 0.0F;
-    float ThrottleB = 0.0F;
-    float ThrottleC = 0.0F;
-    float ThrottleD = 0.0F;
-};
-
-struct ArmState {
-    bool ArmedA = false;
-    bool ArmedB = false;
-    bool ArmedC = false;
-    bool ArmedD = false;
-};
 
 class TCS {
   public:
@@ -31,7 +14,6 @@ class TCS {
     void throttle(int motor, float throttle);
     void stop();
     void test();
-    void testMotor(int motor);
 
     float getThrottle(int motor);
     bool isArmed(int motor);

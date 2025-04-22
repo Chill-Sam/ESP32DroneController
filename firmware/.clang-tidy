@@ -16,6 +16,7 @@ Checks: >
   -cppcoreguidelines-avoid-non-const-global-variables,
   -cppcoreguidelines-narrowing-conversions,
   -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-const-or-ref-data-members,
   -clang-analyzer-optin.performance.Padding,
   -modernize-use-trailing-return-type,
   -modernize-deprecated-headers,

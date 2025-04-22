@@ -1,5 +1,6 @@
 #include "Arduino.h"
 #include "ThrustController.h"
+#include "utils/log.h"
 
 TCS::TCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,
          int maxPulsewidth)
@@ -9,7 +10,7 @@ TCS::TCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,
       engineD(pinD, 4, minPulsewidth, maxPulsewidth) {}
 
 void TCS::arm() {
-    Serial.println("Arming all engines");
+    DBG("[TCS] Arming all engines\n");
     engineA.arm();
     engineB.arm();
     engineC.arm();
@@ -17,13 +18,13 @@ void TCS::arm() {
 }
 
 void TCS::armMotor(int motor) {
-    Serial.println("TCS arming engine " + String(motor));
+    DBG_FMT("[TCS] Arming engine %d\n", motor);
     MCU engine = intToEngine(motor);
     engine.arm();
 }
 
 void TCS::disarm() {
-    Serial.println("Disarming all engines");
+    DBG("[TCS] Disarming all engines\n");
     engineA.disarm();
     engineB.disarm();
     engineC.disarm();
@@ -31,14 +32,13 @@ void TCS::disarm() {
 }
 
 void TCS::disarmMotor(int motor) {
-    Serial.println("TCS disarming engine " + String(motor));
+    DBG_FMT("[TCS] Disarming engine %d\n", motor);
     MCU engine = intToEngine(motor);
     engine.disarm();
 }
 
 void TCS::throttle(int motor, float throttle) {
-    Serial.println("TCS setting " + String(throttle) +
-                   "% throttle for engine " + String(motor));
+    DBG_FMT("[TCS] Setting %f% throttle for engine %d", throttle, motor);
     MCU engine = intToEngine(motor);
     engine.setThrottle(throttle);
 }
@@ -51,7 +51,7 @@ void TCS::stop() {
 }
 
 void TCS::test() {
-    Serial.println("Testing TCS");
+    DBG("[TCS] Testing\n");
     arm();
     delay(5000);
     throttle(1, 20);
@@ -76,12 +76,7 @@ void TCS::test() {
     throttle(4, 20);
     delay(1500);
 
-    Serial.println("Testing for TCS finished!");
-}
-
-void TCS::testMotor(int motor) {
-    MCU engine = intToEngine(motor);
-    engine.test();
+    DBG("[TCS] Testing complete\n");
 }
 
 float TCS::getThrottle(int motor) {
