@@ -2,8 +2,8 @@
 #include "utils/log.h"
 #include <cstdint>
 
-ESCDriver::ESCDriver(uint8_t pwmPin, uint8_t channel, uint16_t minPulsewidth)
-    : pwmPin(pwmPin), channel(channel), minPulsewidth(minPulsewidth) {
+ESCDriver::ESCDriver(uint8_t pwmPin, uint8_t channel, uint16_t minPulsewidth_us)
+    : pwmPin(pwmPin), channel(channel), minPulsewidth_us(minPulsewidth_us) {
 
     ledcSetup(channel, frequency, resolution);
     ledcAttachPin(pwmPin, channel);
@@ -16,7 +16,7 @@ void ESCDriver::write(uint16_t pulsewidth) const {
 
 void ESCDriver::stop() const {
     DBG_FMT("[ESC] Stopping channel %d\n", channel);
-    ledcWrite(channel, pulseWidthToDutyCycle(minPulsewidth));
+    ledcWrite(channel, pulseWidthToDutyCycle(minPulsewidth_us));
 }
 
 uint32_t ESCDriver::pulseWidthToDutyCycle(uint16_t pulsewidth_us) {
