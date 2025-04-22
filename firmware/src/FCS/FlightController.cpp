@@ -6,6 +6,10 @@ FCS::FCS(int pinA, int pinB, int pinC, int pinD, int minPulseWidth,
          int maxPulsewidth)
     : tcs(pinA, pinB, pinC, pinD, minPulseWidth, maxPulsewidth) {
     ahrs.init();
+    arm();
+    xTaskCreatePinnedToCore(update, "FCU", 4096, this, 2, nullptr, 1);
+    xTaskCreatePinnedToCore(rateLoop, "RateLoop", 4096, this, 2, nullptr, 1);
+    xTaskCreatePinnedToCore(angleLoop, "AngleLoop", 4096, this, 1, nullptr, 1);
 }
 
 void FCS::updateOrientation() {
@@ -33,10 +37,6 @@ void FCS::updateControls() {
     state.setpointState = rc.setpointState;
 }
 
-void FCS::begin() {
-    arm();
-    xTaskCreatePinnedToCore(update, "FCU", 4096, this, 2, nullptr, 1);
-}
 void FCS::arm() {
     if (state.flightMode == FlightMode::FAILSAFE) {
         Serial.println("DRONE IS FAILSAFED");
@@ -60,6 +60,37 @@ void FCS::disarm() {
 void FCS::failsafe() {
     state.flightMode = FlightMode::FAILSAFE;
     tcs.disarm();
+}
+
+void FCS::angleLoop(void *pvParameters) {
+    FCS *fcs = static_cast<FCS *>(pvParameters);
+    const TickType_t rate = pdMS_TO_TICKS(10); // 100 Hz
+    TickType_t last = xTaskGetTickCount();
+
+    while (true) {
+        fcs->updateOuterLoop();
+        vTaskDelayUntil(&last, rate);
+    }
+}
+
+void FCS::rateLoop(void *pvParameters) {
+    FCS *fcs = static_cast<FCS *>(pvParameters);
+    const TickType_t rate = pdMS_TO_TICKS(2); // 500 Hz
+    TickType_t last = xTaskGetTickCount();
+
+    while (true) {
+        fcs->updateInnerLoop();
+        vTaskDelayUntil(&last, rate);
+    }
+}
+
+void FCS::updateOuterLoop() {
+    pidPitchAngle.calc(state.setpointState.setpointPitch,
+                       state.orientation.pitch);
+}
+
+void FCS::updateInnerLoop() {
+    pidPitchRate.calc(pidPitchAngle.output, ahrs.gx);
 }
 
 void FCS::update(void *pvParameters) {
@@ -99,8 +130,8 @@ void FCS::update(void *pvParameters) {
         }
 
         // Update PIDs
-        fcs->pidPitch.calc(fcs->state.setpointState.setpointPitch,
-                           fcs->state.orientation.pitch);
+        // fcs->pidPitch.calc(fcs->state.setpointState.setpointPitch,
+        // fcs->state.orientation.pitch);
         // fcs->pidRoll.calc(fcs->state.setpointState.setpointRoll,
         // fcs->state.orientation.roll);
         // fcs->pidYaw.calc(fcs->state.setpointState.setpointYaw,
@@ -142,7 +173,7 @@ void FCS::update(void *pvParameters) {
         }
 
         // Set speeds
-        // Serial.println("Pitch PID: " + String(fcs->pidPitch.output));
+        Serial.println("Pitch PID: " + String(fcs->pidPitchRate.output));
 
         vTaskDelayUntil(&last, rate);
     }

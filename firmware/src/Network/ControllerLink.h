@@ -24,7 +24,6 @@ class ControllerLink {
   public:
     ControllerLink();
 
-    void loopWS() { client.loop(); }
     void updateTelemetry(FlightMode flightMode, ThrottleState throttleState,
                          Orientation orientation);
 
@@ -37,8 +36,11 @@ class ControllerLink {
     WebSocketsClient client;
     String tlm = "";
 
+    void begin();
     void handlePayload(uint8_t *payload);
     void webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
+
+    static void webSocketTask(void *pvParameters);
 
     static String computeHMACSHA256(const String &key, const String &data);
 };

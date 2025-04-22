@@ -14,6 +14,8 @@ struct Orientation {
 class AHRS {
   public:
     volatile float pitch = 0, roll = 0, yaw = 0;
+    volatile float gx = 0, gy = 0, gz = 0;
+
     void init();
 
   private:

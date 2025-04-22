@@ -22,16 +22,15 @@ class FCS {
     FCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,
         int maxPulsewidth);
 
-    void begin();
-    void loopWS() { rc.loopWS(); }
-
   private:
     DroneState state;
     AHRS ahrs;
     TCS tcs;
     ControllerLink rc;
 
-    PID pidPitch{1.0F, 1.0F, 1.0F};
+    PID pidPitchAngle{1.0F, 1.0F, 1.0F};
+    PID pidPitchRate{1.0F, 1.0F, 1.0F};
+
     PID pidRoll{1.0F, 1.0F, 1.0F};
     PID pidYaw{1.0F, 1.0F, 1.0F};
 
@@ -40,10 +39,15 @@ class FCS {
     void updateArmState();
     void updateControls();
 
+    void updateOuterLoop();
+    void updateInnerLoop();
+
     void arm();
     void disarm();
     void failsafe();
 
     static void update(void *pvParameters);
+    static void angleLoop(void *pvParameters);
+    static void rateLoop(void *pvParameters);
     static void telemetry(void *pvParameters);
 };

@@ -15,14 +15,8 @@ void AHRS::init() {
 
     filter.begin(500.0F);
 
-    xTaskCreatePinnedToCore(sensorTask,     // task function
-                            "SensorFusion", // name
-                            4096,           // stack size
-                            this,           // parameters
-                            3,              // priority
-                            nullptr,        // task handle
-                            1               // core (1 = avoid Wi-Fi core)
-    );
+    xTaskCreatePinnedToCore(sensorTask, "SensorFusion", 4096, this, 3, nullptr,
+                            1); // Core 1 (avoid Wi-Fi)
 }
 
 void AHRS::sensorTask(void *pvParameters) {
@@ -64,6 +58,11 @@ void AHRS::sensorTask(void *pvParameters) {
         self->roll = self->filter.getRoll();
         self->pitch = self->filter.getPitch();
         self->yaw = self->filter.getYaw();
+
+        // === SET GYROSCOPE VALUES ===
+        self->gx = gxNed;
+        self->gy = gyNed;
+        self->gz = gzNed;
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }

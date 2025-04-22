@@ -15,6 +15,34 @@
 #define CONTROL_ANGLE 20
 
 ControllerLink::ControllerLink() {
+    xTaskCreatePinnedToCore(webSocketTask, "websocket", 4096, this, 1, nullptr,
+                            0);
+}
+
+void ControllerLink::webSocketTask(void *pvParameters) {
+    auto *rc = static_cast<ControllerLink *>(pvParameters);
+    const TickType_t rate = pdMS_TO_TICKS(20); // 50 Hz
+    TickType_t last = xTaskGetTickCount();
+
+    rc->begin();
+
+    unsigned long lastTelemetry = 0;
+    const unsigned long telemetryInterval = 100; // 10 Hz
+
+    while (true) {
+        rc->client.loop();
+
+        unsigned long now = millis();
+        if (now - lastTelemetry >= telemetryInterval && rc->authenticated) {
+            lastTelemetry = now;
+            rc->client.sendTXT(rc->tlm);
+        }
+
+        vTaskDelayUntil(&last, rate);
+    }
+}
+
+void ControllerLink::begin() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     Serial.print("Connecting to WiFi");
 
@@ -82,8 +110,6 @@ void ControllerLink::handlePayload(uint8_t *payload) {
         armingState.RCArmedB = payloadArming[2];
         armingState.RCArmedC = payloadArming[3];
         armingState.RCArmedD = payloadArming[4];
-
-        client.sendTXT(tlm);
     }
 }
 
