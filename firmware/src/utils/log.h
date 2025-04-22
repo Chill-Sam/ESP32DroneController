@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(VERBOSE)
 #define DBG_BEGIN(speed) Serial.begin(speed)
 #define DBG(msg) Serial.print(msg)
 #define DBG_FMT(fmt, ...) Serial.printf((fmt), ##__VA_ARGS__)
