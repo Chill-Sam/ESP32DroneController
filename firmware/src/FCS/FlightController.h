@@ -5,18 +5,6 @@
 #include "PID.h"
 #include "TCS/ThrustController.h"
 
-struct DroneState {
-    // Onboard Controlled
-    FlightMode flightMode = FlightMode::DISARMED;
-    Orientation orientation;
-    ThrottleState throttleState;
-    ArmState armState;
-
-    // Remote Controlled
-    SetpointState setpointState;
-    RCArmingState rcArmingState;
-};
-
 class FCS {
   public:
     FCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,

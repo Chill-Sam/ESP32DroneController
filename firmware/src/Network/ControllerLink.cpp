@@ -1,20 +1,26 @@
-#include "Arduino.h"
+#include "ArduinoJson/Object/JsonObjectConst.hpp"
+#include "ArduinoJson/Variant/JsonVariant.hpp"
+#include "ArduinoJson/Variant/JsonVariantConst.hpp"
 #include "ControllerLink.h"
-#include "TCS/ThrustController.h"
-#include "WebSocketsClient.h"
-#include "WiFi.h"
-#include "mbedtls/md.h"
+#include "utils/log.h"
+#include <ArduinoJson.h>
+#include <WebSocketsClient.h>
+#include <WiFi.h>
+#include <cstring>
+#include <mbedtls/md.h>
 
-#define WIFI_SSID ""
-#define WIFI_PASSWORD ""
-#define WEBSOCKET "EXAMPLE.COM"
-#define PORT 0000
-#define URI "/EXAMPLE"
-#define SECRET_PASS ""
+#define WIFI_SSID "Xiaomi11Net"
+#define WIFI_PASSWORD "safepass"
+#define WEBSOCKET "chillsam.ddns.net"
+#define PORT 8012
+#define URI "/echo"
+#define SECRET_PASS "dronesecret"
 
 #define CONTROL_ANGLE 20
 
-ControllerLink::ControllerLink() {
+ControllerLink::ControllerLink()
+    : isAuthenticated(_authenticated), setpointState(_setpointState),
+      armingState(_armingState) {
     xTaskCreatePinnedToCore(webSocketTask, "websocket", 4096, this, 1, nullptr,
                             0);
 }
@@ -33,9 +39,9 @@ void ControllerLink::webSocketTask(void *pvParameters) {
         rc->client.loop();
 
         unsigned long now = millis();
-        if (now - lastTelemetry >= telemetryInterval && rc->authenticated) {
+        if (now - lastTelemetry >= telemetryInterval && rc->isAuthenticated) {
             lastTelemetry = now;
-            rc->client.sendTXT(rc->tlm);
+            rc->client.sendTXT(rc->telemetryBuffer);
         }
 
         vTaskDelayUntil(&last, rate);
@@ -44,20 +50,39 @@ void ControllerLink::webSocketTask(void *pvParameters) {
 
 void ControllerLink::begin() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("Connecting to WiFi");
+    DBG("Connecting to WiFi");
 
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        Serial.print(".");
+        DBG(".");
     }
-    Serial.println("\nWiFi Connected");
+    DBG("\nWiFi Connected\n");
     delay(500);
 
     client.beginSSL(WEBSOCKET, PORT, URI);
     client.onEvent([this](WStype_t type, uint8_t *payload, size_t length) {
         this->webSocketEvent(type, payload, length);
     });
+}
+
+void ControllerLink::webSocketEvent(WStype_t type, uint8_t *payload,
+                                    size_t /*length*/) {
+    switch (type) {
+    case WStype_DISCONNECTED:
+        DBG("[WSS] Disconnected\n");
+        onDisconnect();
+        break;
+    case WStype_CONNECTED:
+        DBG("[WSS] Connected\n");
+        break;
+    case WStype_TEXT:
+        DBG_FMT("[WSS] Got message: %s\n", payload);
+        handlePayload(payload);
+        break;
+    default:
+        break;
+    }
 }
 
 void ControllerLink::handlePayload(uint8_t *payload) {
@@ -69,71 +94,97 @@ void ControllerLink::handlePayload(uint8_t *payload) {
     const char *command = json["type"];
 
     if (nonce != nullptr) {
-        Serial.println("Attempting authentication");
-        String reply = computeHMACSHA256(SECRET_PASS, nonce);
-        JsonDocument response;
-        response["role"] = "drone";
-        response["signature"] = reply;
-
-        String output;
-        serializeJson(response, output);
-
-        client.sendTXT(output);
-
+        authenticate(nonce);
     } else if (authstatus != nullptr) {
-        Serial.println("Successfully authenticated!");
-        authenticated = true;
-
-    } else if (command != nullptr) {
-        int test = json["payload"]["test"];
-        if (test == 1 && !shouldTest) {
-            Serial.println("Test command recieved");
-            shouldTest = true;
-        }
-
-        float lx = json["payload"]["joysticks"]["left"][0];
-        float ly = json["payload"]["joysticks"]["left"][1];
-
-        float rx = json["payload"]["joysticks"]["right"][0];
-        float ry = json["payload"]["joysticks"]["right"][1];
-
-        setpointState.setpointPitch = map(constrain(ry, -100, 100), -100, 100,
-                                          -CONTROL_ANGLE, CONTROL_ANGLE);
-        setpointState.setpointRoll = map(constrain(rx, -100, 100), -100, 100,
-                                         -CONTROL_ANGLE, CONTROL_ANGLE);
-        setpointState.setpointYaw = map(constrain(lx, -100, 100), -100, 100,
-                                        -CONTROL_ANGLE, CONTROL_ANGLE);
-
-        JsonArray payloadArming = json["payload"]["arming"];
-        armingState.RCArmedFCU = payloadArming[0];
-        armingState.RCArmedA = payloadArming[1];
-        armingState.RCArmedB = payloadArming[2];
-        armingState.RCArmedC = payloadArming[3];
-        armingState.RCArmedD = payloadArming[4];
+        onAuthenticate();
+    } else if (command != nullptr && strcmp(command, "command") == 0) {
+        handleCommand(json["payload"].as<JsonObjectConst>());
     }
 }
 
-void ControllerLink::webSocketEvent(WStype_t type, uint8_t *payload,
-                                    size_t length) {
-    switch (type) {
-    case WStype_DISCONNECTED:
-        Serial.println("[WSS] Disconnected");
-        break;
-    case WStype_CONNECTED:
-        Serial.println("[WSS] Connected");
-        break;
-    case WStype_TEXT:
-        // Serial.printf("[WSS] Got message: %s\n", payload);
-        handlePayload(payload);
-        break;
-    default:
-        break;
+void ControllerLink::authenticate(const char *nonce) {
+    DBG("Attempting authentication\n");
+    String reply = computeHMACSHA256(SECRET_PASS, nonce);
+    DBG_FMT("Computed hash: %s\n", reply);
+
+    JsonDocument response;
+    response["role"] = "drone";
+    response["signature"] = reply;
+
+    String output;
+    serializeJson(response, output);
+
+    client.sendTXT(output);
+}
+
+void ControllerLink::onAuthenticate() {
+    DBG("Successfully authenticated");
+    _authenticated = true;
+}
+
+void ControllerLink::handleCommand(JsonObjectConst command) {
+    // Handle a test commnad
+    JsonVariantConst testFlag = command["test"];
+    if (testFlag != nullptr && testFlag.as<bool>() && onTestRequest) {
+        onTestRequest();
+    }
+
+    JsonObjectConst joysticks = command["joysticks"];
+    if (joysticks != nullptr) {
+
+        auto parseJoystick = [](JsonVariantConst v) -> Joystick {
+            Joystick j;
+            JsonArrayConst arr = v.as<JsonArrayConst>();
+            if (!arr.isNull() && arr.size() == 2) {
+                j.x = arr[0].as<float>();
+                j.y = arr[1].as<float>();
+            }
+            return j;
+        };
+
+        Joystick leftStick = parseJoystick(joysticks["left"]);
+        Joystick rightStick = parseJoystick(joysticks["right"]);
+
+        calculateSetpoints(leftStick, rightStick);
+    }
+
+    JsonArrayConst arming = command["arming"];
+    if (arming != nullptr && arming.size() == 5) {
+        _armingState.RCArmedFCU = arming[0];
+        _armingState.RCArmedA = arming[1];
+        _armingState.RCArmedB = arming[2];
+        _armingState.RCArmedC = arming[3];
+        _armingState.RCArmedD = arming[4];
     }
 }
 
-void ControllerLink::updateTelemetry(FlightMode flightMode,
-                                     ThrottleState throttleState,
-                                     Orientation orientation) {
+void ControllerLink::calculateSetpoints(Joystick left, Joystick right) {
+    static uint32_t lastMicros = micros();
+    uint32_t now = micros();
+    float dt = (now - lastMicros) / 1000000.0f; // convert µs to seconds
+    dt = constrain(dt, 0.0f, 0.1f);
+
+    lastMicros = now;
+
+    auto scaleInput = [](float val) {
+        return map(constrain(val, -100.0f, 100.0f), -100.0f, 100.0f,
+                   -CONTROL_ANGLE, CONTROL_ANGLE);
+    };
+
+    auto scaleAltitudeRate = [](float val) {
+        return map(constrain(val, -100.0f, 100.0f), -100.0f, 100.0f, -1.0f,
+                   1.0f); // m/s
+    };
+
+    _setpointState.setpointPitch = scaleInput(right.y);
+    _setpointState.setpointRoll = scaleInput(right.x);
+    _setpointState.setpointYaw = scaleInput(left.x);
+
+    float verticalVelocity = scaleAltitudeRate(left.y);
+    _setpointState.setpointAltitude += verticalVelocity * dt;
+}
+
+void ControllerLink::updateTelemetry(const DroneState &state) {
     if (!authenticated) {
         return;
     }

@@ -5,7 +5,7 @@
 FCS::FCS(int pinA, int pinB, int pinC, int pinD, int minPulseWidth,
          int maxPulsewidth)
     : tcs(pinA, pinB, pinC, pinD, minPulseWidth, maxPulsewidth) {
-    ahrs.init();
+    // ahrs.init();
     arm();
     xTaskCreatePinnedToCore(update, "FCU", 4096, this, 2, nullptr, 1);
     xTaskCreatePinnedToCore(rateLoop, "RateLoop", 4096, this, 2, nullptr, 1);

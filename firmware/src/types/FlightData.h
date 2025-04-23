@@ -15,3 +15,10 @@ struct ArmState {
     bool ArmedC = false;
     bool ArmedD = false;
 };
+
+struct Orientation {
+    float pitch = 0.0F;
+    float roll = 0.0F;
+    float yaw = 0.0F;
+    float alt = 0.0F;
+};

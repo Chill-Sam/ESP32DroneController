@@ -1,28 +1,22 @@
 #pragma once
 
 #include "MotorController.h"
+#include <cstdint>
 
 class TCS {
   public:
-    TCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,
-        int maxPulsewidth);
+    TCS(uint8_t pinA, uint8_t pinB, uint8_t pinC, uint8_t pinD,
+        uint16_t minPulsewidth_us, uint16_t maxPulsewidth_us);
 
-    void arm();
-    void armMotor(int motor);
-    void disarm();
-    void disarmMotor(int motor);
-    void throttle(int motor, float throttle);
+    void arm(int8_t motor = -1);
+    void disarm(int8_t motor = -1);
+
+    void throttle(uint8_t motor, float throttle);
     void stop();
     void test();
 
-    float getThrottle(int motor);
-    bool isArmed(int motor);
+    const MCU &motor(uint8_t motor) const;
 
   private:
-    MCU engineA;
-    MCU engineB;
-    MCU engineC;
-    MCU engineD;
-
-    MCU intToEngine(int motor);
+    MCU motors[4];
 };
