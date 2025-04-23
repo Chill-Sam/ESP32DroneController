@@ -1,6 +1,3 @@
-#include "ArduinoJson/Object/JsonObjectConst.hpp"
-#include "ArduinoJson/Variant/JsonVariant.hpp"
-#include "ArduinoJson/Variant/JsonVariantConst.hpp"
 #include "ControllerLink.h"
 #include "utils/log.h"
 #include <ArduinoJson.h>
@@ -9,12 +6,12 @@
 #include <cstring>
 #include <mbedtls/md.h>
 
-#define WIFI_SSID "Xiaomi11Net"
-#define WIFI_PASSWORD "safepass"
-#define WEBSOCKET "chillsam.ddns.net"
-#define PORT 8012
-#define URI "/echo"
-#define SECRET_PASS "dronesecret"
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
+#define WEBSOCKET "EXAMPLE.COM"
+#define PORT 0000
+#define URI "/EXAMPLE"
+#define SECRET_PASS ""
 
 #define CONTROL_ANGLE 20
 
@@ -38,10 +35,15 @@ void ControllerLink::webSocketTask(void *pvParameters) {
     while (true) {
         rc->client.loop();
 
-        unsigned long now = millis();
-        if (now - lastTelemetry >= telemetryInterval && rc->isAuthenticated) {
+        const unsigned long now = millis();
+        const bool shouldSendTelemetry =
+            rc->isAuthenticated && (now - lastTelemetry >= 100);
+
+        if (shouldSendTelemetry) {
             lastTelemetry = now;
-            rc->client.sendTXT(rc->telemetryBuffer);
+            String telemetry;
+            serializeJson(rc->telemetryBuffer, telemetry);
+            rc->client.sendTXT(telemetry);
         }
 
         vTaskDelayUntil(&last, rate);
@@ -161,19 +163,19 @@ void ControllerLink::handleCommand(JsonObjectConst command) {
 void ControllerLink::calculateSetpoints(Joystick left, Joystick right) {
     static uint32_t lastMicros = micros();
     uint32_t now = micros();
-    float dt = (now - lastMicros) / 1000000.0f; // convert µs to seconds
-    dt = constrain(dt, 0.0f, 0.1f);
+    float dt = (now - lastMicros) / 1000000.0F; // convert µs to seconds
+    dt = constrain(dt, 0.0F, 0.1F);
 
     lastMicros = now;
 
     auto scaleInput = [](float val) {
-        return map(constrain(val, -100.0f, 100.0f), -100.0f, 100.0f,
+        return map(constrain(val, -100.0F, 100.0F), -100.0F, 100.0F,
                    -CONTROL_ANGLE, CONTROL_ANGLE);
     };
 
     auto scaleAltitudeRate = [](float val) {
-        return map(constrain(val, -100.0f, 100.0f), -100.0f, 100.0f, -1.0f,
-                   1.0f); // m/s
+        return map(constrain(val, -100.0F, 100.0F), -100.0F, 100.0F, -1.0F,
+                   1.0F); // m/s
     };
 
     _setpointState.setpointPitch = scaleInput(right.y);
@@ -185,96 +187,65 @@ void ControllerLink::calculateSetpoints(Joystick left, Joystick right) {
 }
 
 void ControllerLink::updateTelemetry(const DroneState &state) {
-    if (!authenticated) {
+    if (!isAuthenticated) {
         return;
     }
 
-    String mode;
-    switch (flightMode) {
-    case FlightMode::DISARMED:
-        mode = "DISARMED";
-    case FlightMode::ARMED:
-        mode = "ARMED";
-    case FlightMode::FAILSAFE:
-        mode = "FAILSAFE";
-    default:
-        mode = "UNKNOWN";
-    }
+    telemetryBuffer.clear();
+    telemetryBuffer["type"] = "telemetry";
 
-    JsonDocument msg;
+    const char *modeStrings[] = {"DISARMED", "ARMED", "FAILSAFE", "UNKNOWN"};
+    telemetryBuffer["payload"]["FlightMode"] =
+        modeStrings[static_cast<uint8_t>(state.flightMode)];
 
-    msg["type"] = "telemetry";
+    JsonArray t = telemetryBuffer["payload"]["ThrottleState"].to<JsonArray>();
+    t.add(state.throttleState.ThrottleA);
+    t.add(state.throttleState.ThrottleB);
+    t.add(state.throttleState.ThrottleC);
+    t.add(state.throttleState.ThrottleD);
 
-    JsonObject payload = msg["payload"].to<JsonObject>();
-    payload["FlightMode"] = mode;
-
-    JsonArray jsonThrottleState = payload["ThrottleState"].to<JsonArray>();
-    jsonThrottleState.add(throttleState.ThrottleA);
-    jsonThrottleState.add(throttleState.ThrottleB);
-    jsonThrottleState.add(throttleState.ThrottleC);
-    jsonThrottleState.add(throttleState.ThrottleD);
-
-    JsonArray jsonOrientation = payload["Orientation"].to<JsonArray>();
-    jsonOrientation.add(orientation.pitch);
-    jsonOrientation.add(orientation.roll);
-    jsonOrientation.add(orientation.yaw);
-    jsonOrientation.add(orientation.alt);
-
-    String output;
-    serializeJson(msg, output);
-
-    tlm = output;
+    JsonArray o = telemetryBuffer["payload"]["Orientation"].to<JsonArray>();
+    o.add(state.orientation.pitch);
+    o.add(state.orientation.roll);
+    o.add(state.orientation.yaw);
+    o.add(state.orientation.alt);
 }
 
 String ControllerLink::computeHMACSHA256(const String &key,
                                          const String &data) {
-    // Retrieve the SHA256 info structure.
     const mbedtls_md_info_t *mdInfo =
         mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+    if (mdInfo != nullptr) {
+        DBG("[HMAC] Failed to get SHA256 md info.");
 
-    if (mdInfo == nullptr) {
-        Serial.println("Failed to retrieve md info for SHA256.");
         return "";
     }
 
-    // Output buffer (SHA256 produces 32 bytes)
-    unsigned char hmacOutput[32];
-
-    // Initialize the message digest context
+    unsigned char hmac[32];
     mbedtls_md_context_t ctx;
     mbedtls_md_init(&ctx);
 
-    // Setup the context for HMAC operation (1 indicates HMAC is enabled)
-    int ret = mbedtls_md_setup(&ctx, mdInfo, 1);
-
-    // Start HMAC with the provided key
-    ret = mbedtls_md_hmac_starts(
-        &ctx, reinterpret_cast<const unsigned char *>(key.c_str()),
-        key.length());
-
-    // Process the input data
-    ret = mbedtls_md_hmac_update(
-        &ctx, reinterpret_cast<const unsigned char *>(data.c_str()),
-        data.length());
-
-    // Finalize the HMAC operation and write the result to hmac_output
-    ret = mbedtls_md_hmac_finish(&ctx, hmacOutput);
-
-    if (ret != 0) {
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
+    if (mbedtls_md_setup(&ctx, mdInfo, 1) != 0 ||
+        mbedtls_md_hmac_starts(
+            &ctx, reinterpret_cast<const unsigned char *>(key.c_str()),
+            key.length()) != 0 ||
+        mbedtls_md_hmac_update(
+            &ctx, reinterpret_cast<const unsigned char *>(data.c_str()),
+            data.length()) != 0 ||
+        mbedtls_md_hmac_finish(&ctx, &hmac[0]) != 0) {
+        DBG("[HMAC] HMAC computation failed.");
         mbedtls_md_free(&ctx);
         return "";
     }
+    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
-    // Always free the context to avoid memory leaks.
     mbedtls_md_free(&ctx);
 
-    // Convert the binary HMAC output to a hex-encoded string.
-    String hexDigest = "";
-    char hexBuffer[3]; // Two hex digits plus null terminator
-    for (unsigned char i : hmacOutput) {
-        sprintf(hexBuffer, "%02x", i);
-        hexDigest += hexBuffer;
+    // Convert to hex
+    char hexBuffer[65]; // 64 chars + null terminator
+    for (size_t i = 0; i < sizeof(hmac); ++i) {
+        sprintf(&hexBuffer[i * 2], "%02x", hmac[i]);
     }
-
-    return hexDigest;
+    return {static_cast<const char *>(hexBuffer)};
 }

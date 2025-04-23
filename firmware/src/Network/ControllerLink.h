@@ -24,7 +24,7 @@ class ControllerLink {
     RCArmingState _armingState{};
 
     WebSocketsClient client;
-    String telemetryBuffer;
+    JsonDocument telemetryBuffer;
 
     void begin();
     void webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
