@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ControlData.h"
 #include "FlightData.h"
 
