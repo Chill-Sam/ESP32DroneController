@@ -10,8 +10,10 @@ TCS::TCS(uint8_t pinA, uint8_t pinB, uint8_t pinC, uint8_t pinD,
              MCU(pinC, 3, minPulsewidth, maxPulsewidth),
              MCU(pinD, 4, minPulsewidth, maxPulsewidth)} {}
 
-const MCU &TCS::motor(uint8_t motor) const {
-    return motors[constrain(motor, 0, 3)];
+void TCS::begin() {
+    for (auto &m : motors) {
+        m.begin();
+    }
 }
 
 void TCS::arm(int8_t motor) {

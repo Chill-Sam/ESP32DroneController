@@ -9,6 +9,7 @@ class ControllerLink {
   public:
     ControllerLink();
 
+    void begin();
     void updateTelemetry(const DroneState &state);
 
     const bool &isAuthenticated;
@@ -26,7 +27,7 @@ class ControllerLink {
     WebSocketsClient client;
     JsonDocument telemetryBuffer;
 
-    void begin();
+    void beginConnection();
     void webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
     void handlePayload(uint8_t *payload);
     void authenticate(const char *nonce);

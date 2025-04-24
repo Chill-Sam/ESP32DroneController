@@ -6,6 +6,7 @@ class ESCDriver {
   public:
     ESCDriver(uint8_t pwmPin, uint8_t channel, uint16_t minPulsewidth_us);
 
+    void begin() const;
     void write(uint16_t pulsewidth_us) const;
     void stop() const;
 

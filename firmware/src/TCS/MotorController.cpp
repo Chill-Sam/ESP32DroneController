@@ -8,6 +8,8 @@ MCU::MCU(uint8_t pin, uint8_t channel, uint16_t minPulsewidth_us,
       minPulsewidth_us(minPulsewidth_us), maxPulsewidth_us(maxPulsewidth_us),
       armed(_armed), currentThrottle(_currentThrottle) {}
 
+void MCU::begin() { esc.begin(); }
+
 void MCU::arm() {
     DBG_FMT("[MCU] Arming engine %d\n", channel);
     esc.stop();

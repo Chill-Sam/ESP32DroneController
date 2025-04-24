@@ -3,11 +3,12 @@
 #include <cstdint>
 
 ESCDriver::ESCDriver(uint8_t pwmPin, uint8_t channel, uint16_t minPulsewidth_us)
-    : pwmPin(pwmPin), channel(channel), minPulsewidth_us(minPulsewidth_us) {
+    : pwmPin(pwmPin), channel(channel), minPulsewidth_us(minPulsewidth_us) {};
 
+void ESCDriver::begin() const {
     ledcSetup(channel, frequency, resolution);
     ledcAttachPin(pwmPin, channel);
-};
+}
 
 void ESCDriver::write(uint16_t pulsewidth) const {
     DBG_FMT("[ESC] Writing pulsewidth %f to channel %d\n", pulsewidth, channel);

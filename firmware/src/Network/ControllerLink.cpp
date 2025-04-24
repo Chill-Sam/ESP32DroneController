@@ -17,7 +17,9 @@
 
 ControllerLink::ControllerLink()
     : isAuthenticated(_authenticated), setpointState(_setpointState),
-      armingState(_armingState) {
+      armingState(_armingState) {}
+
+void ControllerLink::begin() {
     xTaskCreatePinnedToCore(webSocketTask, "websocket", 4096, this, 1, nullptr,
                             0);
 }
@@ -27,7 +29,7 @@ void ControllerLink::webSocketTask(void *pvParameters) {
     const TickType_t rate = pdMS_TO_TICKS(20); // 50 Hz
     TickType_t last = xTaskGetTickCount();
 
-    rc->begin();
+    rc->beginConnection();
 
     unsigned long lastTelemetry = 0;
     const unsigned long telemetryInterval = 100; // 10 Hz
@@ -50,7 +52,7 @@ void ControllerLink::webSocketTask(void *pvParameters) {
     }
 }
 
-void ControllerLink::begin() {
+void ControllerLink::beginConnection() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     DBG("Connecting to WiFi");
 

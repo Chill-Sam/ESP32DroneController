@@ -11,6 +11,7 @@ class MCU {
     const bool &armed;
     const float &currentThrottle;
 
+    void begin();
     void arm();
     void disarm();
     void setThrottle(float throttle); // [0.0 - 100.0]
