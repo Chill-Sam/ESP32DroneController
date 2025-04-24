@@ -6,10 +6,10 @@
 
 class AHRS {
   public:
+    void begin();
+
     volatile float pitch = 0, roll = 0, yaw = 0;
     volatile float gx = 0, gy = 0, gz = 0;
-
-    void init();
 
   private:
     QMC5883LCompass compass;

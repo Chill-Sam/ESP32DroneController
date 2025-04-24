@@ -1,6 +1,6 @@
 #include "AHRS.h"
 
-void AHRS::init() {
+void AHRS::begin() {
     MPU6000::initializeMPU();
     mpu.calibrateAccelerometer();
     delay(1000);
