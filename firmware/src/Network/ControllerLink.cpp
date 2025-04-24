@@ -1,4 +1,6 @@
 #include "ControllerLink.h"
+#include "freertos/portmacro.h"
+#include "types/ControlData.h"
 #include "utils/log.h"
 #include <ArduinoJson.h>
 #include <WebSocketsClient.h>
@@ -15,9 +17,12 @@
 
 #define CONTROL_ANGLE 20
 
-ControllerLink::ControllerLink()
-    : isAuthenticated(_authenticated), setpointState(_setpointState),
-      armingState(_armingState) {}
+namespace {
+portMUX_TYPE rcMux = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE telemetryMux = portMUX_INITIALIZER_UNLOCKED;
+} // namespace
+
+ControllerLink::ControllerLink() : isAuthenticated(_authenticated) {}
 
 void ControllerLink::begin() {
     xTaskCreatePinnedToCore(webSocketTask, "websocket", 4096, this, 1, nullptr,
@@ -44,7 +49,9 @@ void ControllerLink::webSocketTask(void *pvParameters) {
         if (shouldSendTelemetry) {
             lastTelemetry = now;
             String telemetry;
+            portENTER_CRITICAL(&telemetryMux);
             serializeJson(rc->telemetryBuffer, telemetry);
+            portEXIT_CRITICAL(&telemetryMux);
             rc->client.sendTXT(telemetry);
         }
 
@@ -124,6 +131,7 @@ void ControllerLink::authenticate(const char *nonce) {
 void ControllerLink::onAuthenticate() {
     DBG("Successfully authenticated");
     _authenticated = true;
+    onAuthenticateSuccess();
 }
 
 void ControllerLink::handleCommand(JsonObjectConst command) {
@@ -154,11 +162,13 @@ void ControllerLink::handleCommand(JsonObjectConst command) {
 
     JsonArrayConst arming = command["arming"];
     if (arming != nullptr && arming.size() == 5) {
+        portENTER_CRITICAL(&rcMux);
         _armingState.RCArmedFCU = arming[0];
         _armingState.RCArmedA = arming[1];
         _armingState.RCArmedB = arming[2];
         _armingState.RCArmedC = arming[3];
         _armingState.RCArmedD = arming[4];
+        portEXIT_CRITICAL(&rcMux);
     }
 }
 
@@ -180,12 +190,14 @@ void ControllerLink::calculateSetpoints(Joystick left, Joystick right) {
                    1.0F); // m/s
     };
 
+    portENTER_CRITICAL(&rcMux);
     _setpointState.setpointPitch = scaleInput(right.y);
     _setpointState.setpointRoll = scaleInput(right.x);
     _setpointState.setpointYaw = scaleInput(left.x);
 
     float verticalVelocity = scaleAltitudeRate(left.y);
     _setpointState.setpointAltitude += verticalVelocity * dt;
+    portEXIT_CRITICAL(&rcMux);
 }
 
 void ControllerLink::updateTelemetry(const DroneState &state) {
@@ -193,6 +205,7 @@ void ControllerLink::updateTelemetry(const DroneState &state) {
         return;
     }
 
+    portENTER_CRITICAL(&telemetryMux);
     telemetryBuffer.clear();
     telemetryBuffer["type"] = "telemetry";
 
@@ -211,6 +224,23 @@ void ControllerLink::updateTelemetry(const DroneState &state) {
     o.add(state.orientation.roll);
     o.add(state.orientation.yaw);
     o.add(state.orientation.alt);
+    portEXIT_CRITICAL(&telemetryMux);
+}
+
+SetpointState ControllerLink::getSetpointState() {
+    SetpointState copy;
+    portENTER_CRITICAL(&rcMux);
+    copy = _setpointState;
+    portEXIT_CRITICAL(&rcMux);
+    return copy;
+}
+
+RCArmingState ControllerLink::getArmingState() {
+    RCArmingState copy;
+    portENTER_CRITICAL(&rcMux);
+    copy = _armingState;
+    portEXIT_CRITICAL(&rcMux);
+    return copy;
 }
 
 String ControllerLink::computeHMACSHA256(const String &key,

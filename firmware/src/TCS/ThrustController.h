@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MotorController.h"
+#include "types/FlightData.h"
 #include <cstdint>
 
 class TCS {
@@ -17,6 +18,14 @@ class TCS {
     void stop();
     void test();
 
+    const ThrottleState &throttleState;
+    const ArmState &armState;
+
   private:
+    ThrottleState _throttleState;
+    ArmState _armState;
+
+    void updateState();
+
     MCU motors[4];
 };

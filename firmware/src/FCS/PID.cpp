@@ -66,7 +66,6 @@ float PID::calc(float setpoint, float input) {
     // Compute and constrain final output
     float output = P + I + D;
     output = constrain(output, min, max);
-    Serial.println(output);
     return output;
 }
 // NOLINTEND(readability-identifier-naming)

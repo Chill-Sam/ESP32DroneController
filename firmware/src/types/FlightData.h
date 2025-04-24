@@ -24,3 +24,10 @@ struct Orientation {
     float yaw = 0.0F;
     float alt = 0.0F;
 };
+
+struct SpeedData {
+    float gx = 0.0F;
+    float gy = 0.0F;
+    float gz = 0.0F;
+    float alt = 0.0F;
+};

@@ -7,6 +7,7 @@ struct DroneState {
     // Onboard Controlled
     FlightMode flightMode = FlightMode::DISARMED;
     Orientation orientation;
+    SpeedData speedData;
     ThrottleState throttleState;
     ArmState armState;
 

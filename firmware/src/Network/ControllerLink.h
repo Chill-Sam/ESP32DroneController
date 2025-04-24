@@ -12,14 +12,15 @@ class ControllerLink {
     void begin();
     void updateTelemetry(const DroneState &state);
 
-    const bool &isAuthenticated;
-    const SetpointState &setpointState;
-    const RCArmingState &armingState;
+    SetpointState getSetpointState();
+    RCArmingState getArmingState();
 
+    std::function<void()> onAuthenticateSuccess;
     std::function<void()> onTestRequest;
     std::function<void()> onDisconnect;
 
   private:
+    const bool &isAuthenticated;
     bool _authenticated = false;
     SetpointState _setpointState{};
     RCArmingState _armingState{};
