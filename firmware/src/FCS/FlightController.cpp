@@ -73,6 +73,24 @@ void FCS::control(void *pvParameters) {
     }
 }
 
+void FCS::updateMotorSpeed() {
+    // Mixer
+    float tlThrust = altCommand + pitchCommand + rollCommand -
+                     yawCommand; // Front Left  (Motor 1)
+    float trThrust = altCommand + pitchCommand - rollCommand +
+                     yawCommand; // Front Right (Motor 0)
+    float blThrust = altCommand - pitchCommand + rollCommand +
+                     yawCommand; // Back Left   (Motor 2)
+    float brThrust = altCommand - pitchCommand - rollCommand -
+                     yawCommand; // Back Right  (Motor 3)
+
+    tcs.throttle(0, 0);
+    tcs.throttle(1, 0);
+    tcs.throttle(2, 0);
+    tcs.throttle(3, 0);
+    // Actually throttle them here
+}
+
 void FCS::updateMotorArming() {
     const bool armStates[] = {
         state.rcArmingState.RCArmedA,
