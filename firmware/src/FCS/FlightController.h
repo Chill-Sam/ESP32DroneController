@@ -2,13 +2,15 @@
 
 #include "AHRS/AHRS.h"
 #include "Network/ControllerLink.h"
-#include "PID.h"
 #include "TCS/ThrustController.h"
+#include "types/DroneState.h"
 
 class FCS {
   public:
     FCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,
         int maxPulsewidth);
+
+    void begin();
 
   private:
     DroneState state;
@@ -16,26 +18,5 @@ class FCS {
     TCS tcs;
     ControllerLink rc;
 
-    PID pidPitchAngle{1.0F, 1.0F, 1.0F};
-    PID pidPitchRate{1.0F, 1.0F, 1.0F};
-
-    PID pidRoll{1.0F, 1.0F, 1.0F};
-    PID pidYaw{1.0F, 1.0F, 1.0F};
-
-    void updateOrientation();
-    void updateThrottleState();
-    void updateArmState();
-    void updateControls();
-
-    void updateOuterLoop();
-    void updateInnerLoop();
-
-    void arm();
-    void disarm();
-    void failsafe();
-
-    static void update(void *pvParameters);
-    static void angleLoop(void *pvParameters);
-    static void rateLoop(void *pvParameters);
-    static void telemetry(void *pvParameters);
+    static void control(void *pvParameters);
 };
