@@ -1,46 +1,41 @@
 #pragma once
 
-#include "AHRS/AHRS.h"
-#include "TCS/ThrustController.h"
+#include "types/ControlData.h"
+#include "types/DroneState.h"
 #include <ArduinoJson.h>
 #include <WebSocketsClient.h>
-
-struct SetpointState {
-    float setpointPitch = 0.0F;
-    float setpointRoll = 0.0F;
-    float setpointYaw = 0.0F;
-    float setpointAltitude = 0.0F;
-};
-
-struct RCArmingState {
-    bool RCArmedFCU = false;
-    bool RCArmedA = false;
-    bool RCArmedB = false;
-    bool RCArmedC = false;
-    bool RCArmedD = false;
-};
 
 class ControllerLink {
   public:
     ControllerLink();
 
-    void updateTelemetry(FlightMode flightMode, ThrottleState throttleState,
-                         Orientation orientation);
+    void begin();
+    void updateTelemetry(const DroneState &state);
 
-    SetpointState setpointState;
-    RCArmingState armingState;
-    bool shouldTest = false;
-    bool authenticated = false;
+    SetpointState getSetpointState();
+    RCArmingState getArmingState();
+
+    std::function<void()> onAuthenticateSuccess;
+    std::function<void()> onTestRequest;
+    std::function<void()> onDisconnect;
 
   private:
-    WebSocketsClient client;
-    String tlm = "";
+    const bool &isAuthenticated;
+    bool _authenticated = false;
+    SetpointState _setpointState{};
+    RCArmingState _armingState{};
 
-    void begin();
-    void handlePayload(uint8_t *payload);
+    WebSocketsClient client;
+    JsonDocument telemetryBuffer;
+
+    void beginConnection();
     void webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
+    void handlePayload(uint8_t *payload);
+    void authenticate(const char *nonce);
+    void onAuthenticate();
+    void handleCommand(JsonObjectConst command);
+    void calculateSetpoints(Joystick left, Joystick right);
 
     static void webSocketTask(void *pvParameters);
-
     static String computeHMACSHA256(const String &key, const String &data);
 };

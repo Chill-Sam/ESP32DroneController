@@ -2,8 +2,6 @@
 
 class PID {
   public:
-    volatile float output = 0;
-
     PID(float p_, float i_, float d_);
 
     float calc(float setpoint, float input);

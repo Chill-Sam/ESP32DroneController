@@ -1,6 +1,12 @@
 #include "AHRS.h"
 
-void AHRS::init() {
+namespace {
+portMUX_TYPE ahrsMux = portMUX_INITIALIZER_UNLOCKED;
+}
+
+AHRS::AHRS() = default;
+
+void AHRS::begin() {
     MPU6000::initializeMPU();
     mpu.calibrateAccelerometer();
     delay(1000);
@@ -54,16 +60,34 @@ void AHRS::sensorTask(void *pvParameters) {
         self->filter.update(gxNed, gyNed, gzNed, axNed, ayNed, azNed, mxNed,
                             myNed, mzNed);
 
+        taskENTER_CRITICAL(&ahrsMux);
         // === GET ORIENTATION ===
-        self->roll = self->filter.getRoll();
-        self->pitch = self->filter.getPitch();
-        self->yaw = self->filter.getYaw();
+        self->_orientation.pitch = self->filter.getPitch();
+        self->_orientation.roll = self->filter.getRoll();
+        self->_orientation.yaw = self->filter.getYaw();
 
         // === SET GYROSCOPE VALUES ===
-        self->gx = gxNed;
-        self->gy = gyNed;
-        self->gz = gzNed;
+        self->_speedData.gx = gxNed;
+        self->_speedData.gy = gyNed;
+        self->_speedData.gz = gzNed;
+        taskEXIT_CRITICAL(&ahrsMux);
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
+}
+
+Orientation AHRS::getOrientation() {
+    Orientation copy;
+    portENTER_CRITICAL(&ahrsMux);
+    copy = _orientation;
+    portEXIT_CRITICAL(&ahrsMux);
+    return copy;
+}
+
+SpeedData AHRS::getSpeedData() {
+    SpeedData copy;
+    portENTER_CRITICAL(&ahrsMux);
+    copy = _speedData;
+    portEXIT_CRITICAL(&ahrsMux);
+    return copy;
 }

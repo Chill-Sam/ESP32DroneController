@@ -1,180 +1,181 @@
-#include "Arduino.h"
 #include "FlightController.h"
-#include "TCS/ThrustController.h"
+#include "types/FlightData.h"
+#include "utils/log.h"
 
 FCS::FCS(int pinA, int pinB, int pinC, int pinD, int minPulseWidth,
          int maxPulsewidth)
-    : tcs(pinA, pinB, pinC, pinD, minPulseWidth, maxPulsewidth) {
-    ahrs.init();
-    arm();
-    xTaskCreatePinnedToCore(update, "FCU", 4096, this, 2, nullptr, 1);
-    xTaskCreatePinnedToCore(rateLoop, "RateLoop", 4096, this, 2, nullptr, 1);
-    xTaskCreatePinnedToCore(angleLoop, "AngleLoop", 4096, this, 1, nullptr, 1);
+    : tcs(pinA, pinB, pinC, pinD, minPulseWidth, maxPulsewidth) {}
+
+void FCS::begin() {
+    ahrs.begin();
+    tcs.begin();
+
+    rc.begin();
+
+    rc.onDisconnect = [this]() { this->failsafe(); };
+    rc.onTestRequest = [this]() { this->tcs.test(); };
+    rc.onAuthenticateSuccess = [this]() { this->startLoop(); };
 }
 
-void FCS::updateOrientation() {
-    state.orientation.pitch = ahrs.pitch;
-    state.orientation.roll = ahrs.roll;
-    state.orientation.yaw = ahrs.yaw;
+void FCS::startLoop() {
+    // Create main control loop task on core 1 with medium priority
+    xTaskCreatePinnedToCore(control, "FCU Control", 4092, this, 2, nullptr, 1);
 }
 
-void FCS::updateThrottleState() {
-    state.throttleState.ThrottleA = tcs.getThrottle(1);
-    state.throttleState.ThrottleB = tcs.getThrottle(2);
-    state.throttleState.ThrottleC = tcs.getThrottle(3);
-    state.throttleState.ThrottleD = tcs.getThrottle(4);
+void FCS::control(void *pvParameters) {
+    FCS *fcs = static_cast<FCS *>(pvParameters);
+
+    const TickType_t rate = pdMS_TO_TICKS(2); // 500 Hz
+    TickType_t last = xTaskGetTickCount();
+
+    while (true) {
+        fcs->updateState();
+
+        // Prevent further action if drone is in FAILSAFE
+        if (fcs->state.flightMode == FlightMode::FAILSAFE) {
+            DBG("[FCS] FAILSAFE")
+            vTaskDelayUntil(&last, rate);
+            continue;
+        }
+
+        // We update PIDs before ARM check to keep the PIDs consistent.
+        fcs->updatePID();
+
+        // Arm/Disarm FCS first before DISARM/ARM check
+        if (fcs->state.rcArmingState.RCArmedFCU) {
+            fcs->arm();
+        } else {
+            fcs->disarm();
+        }
+
+        if (fcs->state.flightMode == FlightMode::DISARMED) {
+            DBG("[FCS] Currently disarmed");
+            fcs->tcs.disarm();
+            fcs->tcs.stop();
+            vTaskDelayUntil(&last, rate);
+            continue;
+        } // Drone should be armed if it passes this
+
+        if (fcs->state.flightMode != FlightMode::ARMED) {
+            DBG("[FCS] PANIC: unreachable");
+            fcs->failsafe();
+            vTaskDelayUntil(&last, rate);
+            continue;
+        }
+
+        // Arm motors based on rc
+        fcs->updateMotorArming();
+
+        // Set motor speeds based on PID
+        fcs->updateMotorSpeed();
+
+        vTaskDelayUntil(&last, rate);
+    }
 }
 
-void FCS::updateArmState() {
-    state.armState.ArmedA = tcs.isArmed(1);
-    state.armState.ArmedB = tcs.isArmed(2);
-    state.armState.ArmedC = tcs.isArmed(3);
-    state.armState.ArmedD = tcs.isArmed(4);
+void FCS::updateMotorSpeed() {
+    // Mixer
+    float tlThrust = altCommand + pitchCommand + rollCommand -
+                     yawCommand; // Front Left  (Motor 1)
+    float trThrust = altCommand + pitchCommand - rollCommand +
+                     yawCommand; // Front Right (Motor 0)
+    float blThrust = altCommand - pitchCommand + rollCommand +
+                     yawCommand; // Back Left   (Motor 2)
+    float brThrust = altCommand - pitchCommand - rollCommand -
+                     yawCommand; // Back Right  (Motor 3)
+
+    tcs.throttle(0, 0);
+    tcs.throttle(1, 0);
+    tcs.throttle(2, 0);
+    tcs.throttle(3, 0);
+    // Actually throttle them here
 }
 
-void FCS::updateControls() {
-    state.rcArmingState = rc.armingState;
-    state.setpointState = rc.setpointState;
+void FCS::updateMotorArming() {
+    const bool armStates[] = {
+        state.rcArmingState.RCArmedA,
+        state.rcArmingState.RCArmedB,
+        state.rcArmingState.RCArmedC,
+        state.rcArmingState.RCArmedD,
+    };
+
+    for (uint8_t i = 0; i < 4; ++i) {
+        if (armStates[i]) {
+            tcs.arm(i);
+        } else {
+            tcs.disarm(i);
+        }
+    }
+}
+
+void FCS::updatePID() {
+    // Outer PIDs
+    float pitchRateSetpoint = outerPitch.calc(state.setpointState.setpointPitch,
+                                              state.orientation.pitch);
+    float rollRateSetpoint = outerPitch.calc(state.setpointState.setpointRoll,
+                                             state.orientation.roll);
+    float yawRateSetpoint =
+        outerPitch.calc(state.setpointState.setpointYaw, state.orientation.yaw);
+    float altRateSetpoint = outerPitch.calc(
+        state.setpointState.setpointAltitude, state.orientation.alt);
+
+    // Inner PIDs
+    pitchCommand = innerPitch.calc(pitchRateSetpoint, state.speedData.gx);
+    rollCommand = innerPitch.calc(rollRateSetpoint, state.speedData.gy);
+    yawCommand = innerPitch.calc(yawRateSetpoint, state.speedData.gz);
+    altCommand = innerPitch.calc(altRateSetpoint, state.speedData.alt);
+
+    DBG_FMT("Pitch: %f | Roll: %f | Yaw: %f | Alt: %f\n", pitchCommand,
+            rollCommand, yawCommand, altCommand);
+}
+
+void FCS::updateState() {
+    DBG("[FCS] Updating state");
+    // Update AHRS states
+    state.orientation = ahrs.getOrientation();
+    state.speedData = ahrs.getSpeedData();
+
+    // Update TCS states
+    state.throttleState = tcs.throttleState;
+    state.armState = tcs.armState;
+
+    // Update RC states
+    state.setpointState = rc.getSetpointState();
+    state.rcArmingState = rc.getArmingState();
 }
 
 void FCS::arm() {
-    if (state.flightMode == FlightMode::FAILSAFE) {
-        Serial.println("DRONE IS FAILSAFED");
-        tcs.disarm();
+    switch (state.flightMode) {
+    case FlightMode::FAILSAFE:
+        DBG("[FCS] Cannot arm, FAILSAFE");
+        return;
+    case FlightMode::ARMED:
+        return;
+    case FlightMode::DISARMED:
+        DBG("[FCS] Arming");
+        state.flightMode = FlightMode::ARMED;
+        tcs.stop();
         return;
     }
-
-    state.flightMode = FlightMode::ARMED;
 }
+
 void FCS::disarm() {
-    if (state.flightMode == FlightMode::FAILSAFE) {
-        Serial.println("DRONE IS FAILSAFED");
-        tcs.disarm();
+    switch (state.flightMode) {
+    case FlightMode::FAILSAFE:
+        DBG("[FCS] Cannot disarm, FAILSAFE");
+        return;
+    case FlightMode::ARMED:
+        DBG("[FCS] Disarming");
+        state.flightMode = FlightMode::DISARMED;
+        tcs.stop();
+        return;
+    case FlightMode::DISARMED:
         return;
     }
-
-    state.flightMode = FlightMode::DISARMED;
-    tcs.disarm();
 }
 
 void FCS::failsafe() {
+    DBG("[FCS] FAILSAFE ACTIVE");
     state.flightMode = FlightMode::FAILSAFE;
     tcs.disarm();
-}
-
-void FCS::angleLoop(void *pvParameters) {
-    FCS *fcs = static_cast<FCS *>(pvParameters);
-    const TickType_t rate = pdMS_TO_TICKS(10); // 100 Hz
-    TickType_t last = xTaskGetTickCount();
-
-    while (true) {
-        fcs->updateOuterLoop();
-        vTaskDelayUntil(&last, rate);
-    }
-}
-
-void FCS::rateLoop(void *pvParameters) {
-    FCS *fcs = static_cast<FCS *>(pvParameters);
-    const TickType_t rate = pdMS_TO_TICKS(2); // 500 Hz
-    TickType_t last = xTaskGetTickCount();
-
-    while (true) {
-        fcs->updateInnerLoop();
-        vTaskDelayUntil(&last, rate);
-    }
-}
-
-void FCS::updateOuterLoop() {
-    pidPitchAngle.calc(state.setpointState.setpointPitch,
-                       state.orientation.pitch);
-}
-
-void FCS::updateInnerLoop() {
-    pidPitchRate.calc(pidPitchAngle.output, ahrs.gx);
-}
-
-void FCS::update(void *pvParameters) {
-    FCS *fcs = static_cast<FCS *>(pvParameters);
-
-    const TickType_t rate = pdMS_TO_TICKS(2); // 500 Hz
-    TickType_t last = xTaskGetTickCount();
-
-    while (true) {
-        if (!fcs->rc.authenticated) {
-            vTaskDelayUntil(&last, rate);
-            continue;
-        }
-        // Update telemetry in the RC
-        fcs->rc.updateTelemetry(fcs->state.flightMode, fcs->state.throttleState,
-                                fcs->state.orientation);
-
-        // Update State
-        fcs->updateOrientation();
-        fcs->updateThrottleState();
-        fcs->updateArmState();
-        fcs->updateControls();
-
-        // Dont do anything if FAILSAFED
-        if (fcs->state.flightMode == FlightMode::FAILSAFE) {
-            Serial.println("DRONE IS FAILSAFED");
-            fcs->disarm();
-            vTaskDelayUntil(&last, rate);
-            continue;
-        }
-
-        // Test the drone
-        if (fcs->rc.shouldTest) {
-            Serial.println("Should Test");
-            fcs->tcs.test();
-            fcs->rc.shouldTest = false;
-        }
-
-        // Update PIDs
-        // fcs->pidPitch.calc(fcs->state.setpointState.setpointPitch,
-        // fcs->state.orientation.pitch);
-        // fcs->pidRoll.calc(fcs->state.setpointState.setpointRoll,
-        // fcs->state.orientation.roll);
-        // fcs->pidYaw.calc(fcs->state.setpointState.setpointYaw,
-        // fcs->state.orientation.yaw);
-
-        // Should FCS be armed?
-        if (fcs->state.rcArmingState.RCArmedFCU &&
-            fcs->state.flightMode == FlightMode::DISARMED) {
-            Serial.println("Arming FCU");
-            fcs->arm();
-        } else if (!fcs->state.rcArmingState.RCArmedFCU &&
-                   fcs->state.flightMode == FlightMode::ARMED) {
-            Serial.println("I am now disarming FCU");
-            fcs->disarm();
-        }
-
-        // Is FCS disarmed?
-        if (fcs->state.flightMode == FlightMode::DISARMED) {
-            Serial.println("FCS is disarmed");
-            // fcs->tcs.disarm();
-            vTaskDelayUntil(&last, rate);
-            continue;
-        }
-
-        // Arm / Disarm motors
-        std::array<bool, 4> arming = {fcs->state.rcArmingState.RCArmedA,
-                                      fcs->state.rcArmingState.RCArmedB,
-                                      fcs->state.rcArmingState.RCArmedC,
-                                      fcs->state.rcArmingState.RCArmedD};
-
-        for (std::size_t i = 0; i < arming.size(); ++i) {
-            bool armed = arming[i];
-            int motorId = static_cast<int>(i) + 1; // yields 1,2,3,4
-            if (armed && fcs->tcs.isArmed(motorId)) {
-                fcs->tcs.armMotor(motorId);
-            } else if (!armed && fcs->tcs.isArmed(motorId)) {
-                fcs->tcs.disarmMotor(motorId);
-            }
-        }
-
-        // Set speeds
-        Serial.println("Pitch PID: " + String(fcs->pidPitchRate.output));
-
-        vTaskDelayUntil(&last, rate);
-    }
 }

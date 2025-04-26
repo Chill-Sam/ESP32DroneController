@@ -1,24 +1,26 @@
-#include "Arduino.h"
 #include "ESCDriver.h"
+#include "utils/log.h"
+#include <cstdint>
 
-ESCDriver::ESCDriver(int pwmPin, int channel, int minPulsewidth)
-    : pwmPin(pwmPin), channel(channel), minPulsewidth(minPulsewidth) {
+ESCDriver::ESCDriver(uint8_t pwmPin, uint8_t channel, uint16_t minPulsewidth_us)
+    : pwmPin(pwmPin), channel(channel), minPulsewidth_us(minPulsewidth_us) {};
+
+void ESCDriver::begin() const {
     ledcSetup(channel, frequency, resolution);
     ledcAttachPin(pwmPin, channel);
-};
+}
 
-void ESCDriver::write(float pulsewidth) {
-    Serial.println("Writing pulsewidth " + String(pulsewidth) + " to ESC " +
-                   String(channel));
+void ESCDriver::write(uint16_t pulsewidth) const {
+    DBG_FMT("[ESC] Writing pulsewidth %f to channel %d\n", pulsewidth, channel);
     ledcWrite(channel, pulseWidthToDutyCycle(pulsewidth));
 }
 
-void ESCDriver::stop() {
-    Serial.println("Stopping ESC " + String(channel));
-    ledcWrite(channel, pulseWidthToDutyCycle(minPulsewidth));
+void ESCDriver::stop() const {
+    DBG_FMT("[ESC] Stopping channel %d\n", channel);
+    ledcWrite(channel, pulseWidthToDutyCycle(minPulsewidth_us));
 }
 
-float ESCDriver::pulseWidthToDutyCycle(float pulsewidth) const {
-    float maxDutyCycle = pow(2, resolution) - 1;
-    return map(pulsewidth, 0, 20000, 0, maxDutyCycle);
+uint32_t ESCDriver::pulseWidthToDutyCycle(uint16_t pulsewidth_us) {
+    uint32_t maxDuty = (1UL << resolution) - 1; // 2^resolution - 1
+    return map(pulsewidth_us, 0, 20000, 0, maxDuty);
 }

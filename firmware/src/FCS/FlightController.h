@@ -4,23 +4,14 @@
 #include "Network/ControllerLink.h"
 #include "PID.h"
 #include "TCS/ThrustController.h"
-
-struct DroneState {
-    // Onboard Controlled
-    FlightMode flightMode = FlightMode::DISARMED;
-    Orientation orientation;
-    ThrottleState throttleState;
-    ArmState armState;
-
-    // Remote Controlled
-    SetpointState setpointState;
-    RCArmingState rcArmingState;
-};
+#include "types/DroneState.h"
 
 class FCS {
   public:
     FCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,
         int maxPulsewidth);
+
+    void begin();
 
   private:
     DroneState state;
@@ -28,26 +19,29 @@ class FCS {
     TCS tcs;
     ControllerLink rc;
 
-    PID pidPitchAngle{1.0F, 1.0F, 1.0F};
-    PID pidPitchRate{1.0F, 1.0F, 1.0F};
+    PID outerPitch{1.0F, 1.0F, 1.0F};
+    PID outerRoll{1.0F, 1.0F, 1.0F};
+    PID outerYaw{1.0F, 1.0F, 1.0F};
+    PID outerAlt{1.0F, 1.0F, 1.0F};
 
-    PID pidRoll{1.0F, 1.0F, 1.0F};
-    PID pidYaw{1.0F, 1.0F, 1.0F};
+    PID innerPitch{1.0F, 1.0F, 1.0F};
+    PID innerRoll{1.0F, 1.0F, 1.0F};
+    PID innerYaw{1.0F, 1.0F, 1.0F};
+    PID innerAlt{1.0F, 1.0F, 1.0F};
 
-    void updateOrientation();
-    void updateThrottleState();
-    void updateArmState();
-    void updateControls();
+    float pitchCommand = 0;
+    float rollCommand = 0;
+    float yawCommand = 0;
+    float altCommand = 0;
 
-    void updateOuterLoop();
-    void updateInnerLoop();
-
+    void updateMotorSpeed();
+    void updateMotorArming();
+    void updatePID();
+    void updateState();
     void arm();
     void disarm();
     void failsafe();
+    void startLoop();
 
-    static void update(void *pvParameters);
-    static void angleLoop(void *pvParameters);
-    static void rateLoop(void *pvParameters);
-    static void telemetry(void *pvParameters);
+    static void control(void *pvParameters);
 };

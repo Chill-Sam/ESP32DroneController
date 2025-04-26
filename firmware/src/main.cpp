@@ -1,11 +1,12 @@
 #include "Arduino.h"
 #include "FCS/FlightController.h"
+#include "utils/log.h"
 
 FCS *fcs;
 
 void setup() {
-    Serial.begin(115200);
-    Serial.println("Starting");
+    DBG_BEGIN(115200);
+    DBG("Starting");
     fcs = new FCS(26, 25, 33, 32, 1000, 2000);
 }
 

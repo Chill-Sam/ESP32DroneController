@@ -1,27 +1,26 @@
 #pragma once
 
 #include "MPU6000.h"
+#include "types/FlightData.h"
 #include <MadgwickAHRS.h>
 #include <QMC5883LCompass.h>
 
-struct Orientation {
-    float pitch = 0.0F;
-    float roll = 0.0F;
-    float yaw = 0.0F;
-    float alt = 0.0F;
-};
-
 class AHRS {
   public:
-    volatile float pitch = 0, roll = 0, yaw = 0;
-    volatile float gx = 0, gy = 0, gz = 0;
+    AHRS();
 
-    void init();
+    void begin();
+
+    Orientation getOrientation();
+    SpeedData getSpeedData();
 
   private:
     QMC5883LCompass compass;
     MPU6000 mpu;
     Madgwick filter;
+
+    Orientation _orientation;
+    SpeedData _speedData;
 
     static void sensorTask(void *pvParameters);
 };

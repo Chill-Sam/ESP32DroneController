@@ -1,20 +1,22 @@
 #pragma once
 
+#include <cstdint>
+
 class ESCDriver {
   public:
-    ESCDriver(int pwmPin, int channel, int minPulsewidth);
+    ESCDriver(uint8_t pwmPin, uint8_t channel, uint16_t minPulsewidth_us);
 
-    void write(float pulsewidth);
-    void stop();
+    void begin() const;
+    void write(uint16_t pulsewidth_us) const;
+    void stop() const;
 
   private:
-    int pwmPin;
-    int channel;
+    const uint8_t pwmPin;
+    const uint8_t channel;
+    const uint16_t minPulsewidth_us;
 
-    int frequency = 50;
-    int resolution = 16;
+    static constexpr uint16_t frequency = 50;
+    static constexpr uint8_t resolution = 16;
 
-    int minPulsewidth;
-
-    float pulseWidthToDutyCycle(float pulsewidth) const;
+    static uint32_t pulseWidthToDutyCycle(uint16_t pulsewidth_us);
 };

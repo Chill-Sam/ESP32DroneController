@@ -1,9 +1,12 @@
-#include "Arduino.h"
 #include "ControllerLink.h"
-#include "TCS/ThrustController.h"
-#include "WebSocketsClient.h"
-#include "WiFi.h"
-#include "mbedtls/md.h"
+#include "freertos/portmacro.h"
+#include "types/ControlData.h"
+#include "utils/log.h"
+#include <ArduinoJson.h>
+#include <WebSocketsClient.h>
+#include <WiFi.h>
+#include <cstring>
+#include <mbedtls/md.h>
 
 #define WIFI_SSID ""
 #define WIFI_PASSWORD ""
@@ -14,7 +17,14 @@
 
 #define CONTROL_ANGLE 20
 
-ControllerLink::ControllerLink() {
+namespace {
+portMUX_TYPE rcMux = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE telemetryMux = portMUX_INITIALIZER_UNLOCKED;
+} // namespace
+
+ControllerLink::ControllerLink() : isAuthenticated(_authenticated) {}
+
+void ControllerLink::begin() {
     xTaskCreatePinnedToCore(webSocketTask, "websocket", 4096, this, 1, nullptr,
                             0);
 }
@@ -24,7 +34,7 @@ void ControllerLink::webSocketTask(void *pvParameters) {
     const TickType_t rate = pdMS_TO_TICKS(20); // 50 Hz
     TickType_t last = xTaskGetTickCount();
 
-    rc->begin();
+    rc->beginConnection();
 
     unsigned long lastTelemetry = 0;
     const unsigned long telemetryInterval = 100; // 10 Hz
@@ -32,32 +42,58 @@ void ControllerLink::webSocketTask(void *pvParameters) {
     while (true) {
         rc->client.loop();
 
-        unsigned long now = millis();
-        if (now - lastTelemetry >= telemetryInterval && rc->authenticated) {
+        const unsigned long now = millis();
+        const bool shouldSendTelemetry =
+            rc->isAuthenticated && (now - lastTelemetry >= 100);
+
+        if (shouldSendTelemetry) {
             lastTelemetry = now;
-            rc->client.sendTXT(rc->tlm);
+            String telemetry;
+            portENTER_CRITICAL(&telemetryMux);
+            serializeJson(rc->telemetryBuffer, telemetry);
+            portEXIT_CRITICAL(&telemetryMux);
+            rc->client.sendTXT(telemetry);
         }
 
         vTaskDelayUntil(&last, rate);
     }
 }
 
-void ControllerLink::begin() {
+void ControllerLink::beginConnection() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("Connecting to WiFi");
+    DBG("Connecting to WiFi");
 
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        Serial.print(".");
+        DBG(".");
     }
-    Serial.println("\nWiFi Connected");
+    DBG("\nWiFi Connected\n");
     delay(500);
 
     client.beginSSL(WEBSOCKET, PORT, URI);
     client.onEvent([this](WStype_t type, uint8_t *payload, size_t length) {
         this->webSocketEvent(type, payload, length);
     });
+}
+
+void ControllerLink::webSocketEvent(WStype_t type, uint8_t *payload,
+                                    size_t /*length*/) {
+    switch (type) {
+    case WStype_DISCONNECTED:
+        DBG("[WSS] Disconnected\n");
+        onDisconnect();
+        break;
+    case WStype_CONNECTED:
+        DBG("[WSS] Connected\n");
+        break;
+    case WStype_TEXT:
+        DBG_FMT("[WSS] Got message: %s\n", payload);
+        handlePayload(payload);
+        break;
+    default:
+        break;
+    }
 }
 
 void ControllerLink::handlePayload(uint8_t *payload) {
@@ -69,161 +105,179 @@ void ControllerLink::handlePayload(uint8_t *payload) {
     const char *command = json["type"];
 
     if (nonce != nullptr) {
-        Serial.println("Attempting authentication");
-        String reply = computeHMACSHA256(SECRET_PASS, nonce);
-        JsonDocument response;
-        response["role"] = "drone";
-        response["signature"] = reply;
-
-        String output;
-        serializeJson(response, output);
-
-        client.sendTXT(output);
-
+        authenticate(nonce);
     } else if (authstatus != nullptr) {
-        Serial.println("Successfully authenticated!");
-        authenticated = true;
-
-    } else if (command != nullptr) {
-        int test = json["payload"]["test"];
-        if (test == 1 && !shouldTest) {
-            Serial.println("Test command recieved");
-            shouldTest = true;
-        }
-
-        float lx = json["payload"]["joysticks"]["left"][0];
-        float ly = json["payload"]["joysticks"]["left"][1];
-
-        float rx = json["payload"]["joysticks"]["right"][0];
-        float ry = json["payload"]["joysticks"]["right"][1];
-
-        setpointState.setpointPitch = map(constrain(ry, -100, 100), -100, 100,
-                                          -CONTROL_ANGLE, CONTROL_ANGLE);
-        setpointState.setpointRoll = map(constrain(rx, -100, 100), -100, 100,
-                                         -CONTROL_ANGLE, CONTROL_ANGLE);
-        setpointState.setpointYaw = map(constrain(lx, -100, 100), -100, 100,
-                                        -CONTROL_ANGLE, CONTROL_ANGLE);
-
-        JsonArray payloadArming = json["payload"]["arming"];
-        armingState.RCArmedFCU = payloadArming[0];
-        armingState.RCArmedA = payloadArming[1];
-        armingState.RCArmedB = payloadArming[2];
-        armingState.RCArmedC = payloadArming[3];
-        armingState.RCArmedD = payloadArming[4];
+        onAuthenticate();
+    } else if (command != nullptr && strcmp(command, "command") == 0) {
+        handleCommand(json["payload"].as<JsonObjectConst>());
     }
 }
 
-void ControllerLink::webSocketEvent(WStype_t type, uint8_t *payload,
-                                    size_t length) {
-    switch (type) {
-    case WStype_DISCONNECTED:
-        Serial.println("[WSS] Disconnected");
-        break;
-    case WStype_CONNECTED:
-        Serial.println("[WSS] Connected");
-        break;
-    case WStype_TEXT:
-        // Serial.printf("[WSS] Got message: %s\n", payload);
-        handlePayload(payload);
-        break;
-    default:
-        break;
+void ControllerLink::authenticate(const char *nonce) {
+    DBG("Attempting authentication\n");
+    String reply = computeHMACSHA256(SECRET_PASS, nonce);
+    DBG_FMT("Computed hash: %s\n", reply);
+
+    JsonDocument response;
+    response["role"] = "drone";
+    response["signature"] = reply;
+
+    String output;
+    serializeJson(response, output);
+
+    client.sendTXT(output);
+}
+
+void ControllerLink::onAuthenticate() {
+    DBG("Successfully authenticated");
+    _authenticated = true;
+    onAuthenticateSuccess();
+}
+
+void ControllerLink::handleCommand(JsonObjectConst command) {
+    // Handle a test commnad
+    JsonVariantConst testFlag = command["test"];
+    if (testFlag != nullptr && testFlag.as<bool>() && onTestRequest) {
+        onTestRequest();
+    }
+
+    JsonObjectConst joysticks = command["joysticks"];
+    if (joysticks != nullptr) {
+
+        auto parseJoystick = [](JsonVariantConst v) -> Joystick {
+            Joystick j;
+            JsonArrayConst arr = v.as<JsonArrayConst>();
+            if (!arr.isNull() && arr.size() == 2) {
+                j.x = arr[0].as<float>();
+                j.y = arr[1].as<float>();
+            }
+            return j;
+        };
+
+        Joystick leftStick = parseJoystick(joysticks["left"]);
+        Joystick rightStick = parseJoystick(joysticks["right"]);
+
+        calculateSetpoints(leftStick, rightStick);
+    }
+
+    JsonArrayConst arming = command["arming"];
+    if (arming != nullptr && arming.size() == 5) {
+        portENTER_CRITICAL(&rcMux);
+        _armingState.RCArmedFCU = arming[0];
+        _armingState.RCArmedA = arming[1];
+        _armingState.RCArmedB = arming[2];
+        _armingState.RCArmedC = arming[3];
+        _armingState.RCArmedD = arming[4];
+        portEXIT_CRITICAL(&rcMux);
     }
 }
 
-void ControllerLink::updateTelemetry(FlightMode flightMode,
-                                     ThrottleState throttleState,
-                                     Orientation orientation) {
-    if (!authenticated) {
+void ControllerLink::calculateSetpoints(Joystick left, Joystick right) {
+    static uint32_t lastMicros = micros();
+    uint32_t now = micros();
+    float dt = (now - lastMicros) / 1000000.0F; // convert µs to seconds
+    dt = constrain(dt, 0.0F, 0.1F);
+
+    lastMicros = now;
+
+    auto scaleInput = [](float val) {
+        return map(constrain(val, -100.0F, 100.0F), -100.0F, 100.0F,
+                   -CONTROL_ANGLE, CONTROL_ANGLE);
+    };
+
+    auto scaleAltitudeRate = [](float val) {
+        return map(constrain(val, -100.0F, 100.0F), -100.0F, 100.0F, -1.0F,
+                   1.0F); // m/s
+    };
+
+    portENTER_CRITICAL(&rcMux);
+    _setpointState.setpointPitch = scaleInput(right.y);
+    _setpointState.setpointRoll = scaleInput(right.x);
+    _setpointState.setpointYaw = scaleInput(left.x);
+
+    float verticalVelocity = scaleAltitudeRate(left.y);
+    _setpointState.setpointAltitude += verticalVelocity * dt;
+    portEXIT_CRITICAL(&rcMux);
+}
+
+void ControllerLink::updateTelemetry(const DroneState &state) {
+    if (!isAuthenticated) {
         return;
     }
 
-    String mode;
-    switch (flightMode) {
-    case FlightMode::DISARMED:
-        mode = "DISARMED";
-    case FlightMode::ARMED:
-        mode = "ARMED";
-    case FlightMode::FAILSAFE:
-        mode = "FAILSAFE";
-    default:
-        mode = "UNKNOWN";
-    }
+    portENTER_CRITICAL(&telemetryMux);
+    telemetryBuffer.clear();
+    telemetryBuffer["type"] = "telemetry";
 
-    JsonDocument msg;
+    const char *modeStrings[] = {"DISARMED", "ARMED", "FAILSAFE", "UNKNOWN"};
+    telemetryBuffer["payload"]["FlightMode"] =
+        modeStrings[static_cast<uint8_t>(state.flightMode)];
 
-    msg["type"] = "telemetry";
+    JsonArray t = telemetryBuffer["payload"]["ThrottleState"].to<JsonArray>();
+    t.add(state.throttleState.ThrottleA);
+    t.add(state.throttleState.ThrottleB);
+    t.add(state.throttleState.ThrottleC);
+    t.add(state.throttleState.ThrottleD);
 
-    JsonObject payload = msg["payload"].to<JsonObject>();
-    payload["FlightMode"] = mode;
+    JsonArray o = telemetryBuffer["payload"]["Orientation"].to<JsonArray>();
+    o.add(state.orientation.pitch);
+    o.add(state.orientation.roll);
+    o.add(state.orientation.yaw);
+    o.add(state.orientation.alt);
+    portEXIT_CRITICAL(&telemetryMux);
+}
 
-    JsonArray jsonThrottleState = payload["ThrottleState"].to<JsonArray>();
-    jsonThrottleState.add(throttleState.ThrottleA);
-    jsonThrottleState.add(throttleState.ThrottleB);
-    jsonThrottleState.add(throttleState.ThrottleC);
-    jsonThrottleState.add(throttleState.ThrottleD);
+SetpointState ControllerLink::getSetpointState() {
+    SetpointState copy;
+    portENTER_CRITICAL(&rcMux);
+    copy = _setpointState;
+    portEXIT_CRITICAL(&rcMux);
+    return copy;
+}
 
-    JsonArray jsonOrientation = payload["Orientation"].to<JsonArray>();
-    jsonOrientation.add(orientation.pitch);
-    jsonOrientation.add(orientation.roll);
-    jsonOrientation.add(orientation.yaw);
-    jsonOrientation.add(orientation.alt);
-
-    String output;
-    serializeJson(msg, output);
-
-    tlm = output;
+RCArmingState ControllerLink::getArmingState() {
+    RCArmingState copy;
+    portENTER_CRITICAL(&rcMux);
+    copy = _armingState;
+    portEXIT_CRITICAL(&rcMux);
+    return copy;
 }
 
 String ControllerLink::computeHMACSHA256(const String &key,
                                          const String &data) {
-    // Retrieve the SHA256 info structure.
     const mbedtls_md_info_t *mdInfo =
         mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+    if (mdInfo != nullptr) {
+        DBG("[HMAC] Failed to get SHA256 md info.");
 
-    if (mdInfo == nullptr) {
-        Serial.println("Failed to retrieve md info for SHA256.");
         return "";
     }
 
-    // Output buffer (SHA256 produces 32 bytes)
-    unsigned char hmacOutput[32];
-
-    // Initialize the message digest context
+    unsigned char hmac[32];
     mbedtls_md_context_t ctx;
     mbedtls_md_init(&ctx);
 
-    // Setup the context for HMAC operation (1 indicates HMAC is enabled)
-    int ret = mbedtls_md_setup(&ctx, mdInfo, 1);
-
-    // Start HMAC with the provided key
-    ret = mbedtls_md_hmac_starts(
-        &ctx, reinterpret_cast<const unsigned char *>(key.c_str()),
-        key.length());
-
-    // Process the input data
-    ret = mbedtls_md_hmac_update(
-        &ctx, reinterpret_cast<const unsigned char *>(data.c_str()),
-        data.length());
-
-    // Finalize the HMAC operation and write the result to hmac_output
-    ret = mbedtls_md_hmac_finish(&ctx, hmacOutput);
-
-    if (ret != 0) {
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
+    if (mbedtls_md_setup(&ctx, mdInfo, 1) != 0 ||
+        mbedtls_md_hmac_starts(
+            &ctx, reinterpret_cast<const unsigned char *>(key.c_str()),
+            key.length()) != 0 ||
+        mbedtls_md_hmac_update(
+            &ctx, reinterpret_cast<const unsigned char *>(data.c_str()),
+            data.length()) != 0 ||
+        mbedtls_md_hmac_finish(&ctx, &hmac[0]) != 0) {
+        DBG("[HMAC] HMAC computation failed.");
         mbedtls_md_free(&ctx);
         return "";
     }
+    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
-    // Always free the context to avoid memory leaks.
     mbedtls_md_free(&ctx);
 
-    // Convert the binary HMAC output to a hex-encoded string.
-    String hexDigest = "";
-    char hexBuffer[3]; // Two hex digits plus null terminator
-    for (unsigned char i : hmacOutput) {
-        sprintf(hexBuffer, "%02x", i);
-        hexDigest += hexBuffer;
+    // Convert to hex
+    char hexBuffer[65]; // 64 chars + null terminator
+    for (size_t i = 0; i < sizeof(hmac); ++i) {
+        sprintf(&hexBuffer[i * 2], "%02x", hmac[i]);
     }
-
-    return hexDigest;
+    return {static_cast<const char *>(hexBuffer)};
 }

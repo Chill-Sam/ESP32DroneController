@@ -1,4 +1,5 @@
 #include "MPU6000.h"
+#include "utils/log.h"
 #include <Arduino.h>
 #include <SPI.h> // SPI communication library
 
@@ -70,11 +71,10 @@ void MPU6000::initializeMPU() {
     // Confirm register data
     userCtrl = readRegister(USER_CTRL);
     if (userCtrl == 0x10) {
-        Serial.println("USER_CTRL Register properly set, I2C_IF_DIS bit is 1.");
+        DBG("[AHRS] USER_CTRL Register properly set, I2C_IF_DIS bit is 1.\n");
 
     } else {
-        Serial.print("Error setting USER_CTRL Register: ");
-        Serial.print(userCtrl, HEX);
+        DBG_FMT("[AHRS] Error setting USER_CTRL Register: %#010x\n", userCtrl);
         while (true) {
         }
     }
@@ -95,7 +95,7 @@ void MPU6000::getData(float &ax, float &ay, float &az, float &gx, float &gy,
 }
 
 void MPU6000::calibrateAccelerometer() {
-    Serial.println("Calibrating Accelerometer...");
+    DBG("[AHRS] Calibrating Accelerometer...\n");
     int numSamples = 500;
 
     float sumXOffset = 0, sumYOffset = 0, sumZOffset = 0;
@@ -112,10 +112,9 @@ void MPU6000::calibrateAccelerometer() {
         sumYOffset += ay;
         sumZOffset += az;
 
-        Serial.println(
-            "ax: " + String(ax) + " | sum: " + String(sumXOffset) +
-            " | ay: " + String(ay) + " | sum: " + String(sumYOffset) +
-            " | az: " + String(az) + " | sum: " + String(sumZOffset));
+        DBG_FMT(
+            "[AHRS] ax: %f | sum: %f | ay: %f | sum: %f | az: %f | sum: %f\n",
+            ax, sumXOffset, ay, sumYOffset, az, sumZOffset);
         delay(10);
     }
 
@@ -130,13 +129,13 @@ void MPU6000::calibrateAccelerometer() {
     accelYOffset = sumYOffset;
     accelZOffset = sumZOffset;
 
-    Serial.println("X: " + String(accelXOffset) + " | Y: " +
-                   String(accelYOffset) + " | Z: " + String(accelZOffset));
-    Serial.println("Accelerometer Calibration Complete.");
+    DBG_FMT("[AHRS] X: %f | Y: %f | Z: %f\n", accelXOffset, accelYOffset,
+            accelZOffset);
+    DBG("[AHRS] Accelerometer Calibration Complete.\n");
 }
 
 void MPU6000::calibrateGyroscope() {
-    Serial.println("Calibrating gyroscope...");
+    DBG("[AHRS] Calibrating gyroscope...\n");
     int numSamples = 500;
 
     float sumXOffset = 0, sumYOffset = 0, sumZOffset = 0;
@@ -153,10 +152,9 @@ void MPU6000::calibrateGyroscope() {
         sumYOffset += gy;
         sumZOffset += gz;
 
-        Serial.println(
-            "gx: " + String(gx) + " | sum: " + String(sumXOffset) +
-            " | gy: " + String(gy) + " | sum: " + String(sumYOffset) +
-            " | gz: " + String(gz) + " | sum: " + String(sumZOffset));
+        DBG_FMT(
+            "[AHRS] gx: %f | sum: %f | gy: %f | sum: %f | gz: %f | sum: %f\n",
+            gx, sumXOffset, gy, sumYOffset, gz, sumZOffset);
         delay(10);
     }
 
@@ -167,9 +165,9 @@ void MPU6000::calibrateGyroscope() {
     gyroXOffset = sumXOffset;
     gyroYOffset = sumYOffset;
     gyroZOffset = sumZOffset;
-    Serial.println("X: " + String(gyroXOffset) + " | Y: " +
-                   String(gyroYOffset) + " | Z: " + String(gyroZOffset));
-    Serial.println("Gyroscope Calibration Complete.");
+    DBG_FMT("[AHRS] X: %f | Y: %f | Z: %f\n", gyroXOffset, gyroYOffset,
+            gyroZOffset);
+    DBG("[AHRS] Gyroscope Calibration Complete.");
 }
 
 void MPU6000::writeRegister(uint8_t reg, uint8_t value) {

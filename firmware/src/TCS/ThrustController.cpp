@@ -1,110 +1,100 @@
 #include "Arduino.h"
 #include "ThrustController.h"
+#include "utils/log.h"
+#include <cstdint>
 
-TCS::TCS(int pinA, int pinB, int pinC, int pinD, int minPulsewidth,
-         int maxPulsewidth)
-    : engineA(pinA, 1, minPulsewidth, maxPulsewidth),
-      engineB(pinB, 2, minPulsewidth, maxPulsewidth),
-      engineC(pinC, 3, minPulsewidth, maxPulsewidth),
-      engineD(pinD, 4, minPulsewidth, maxPulsewidth) {}
+TCS::TCS(uint8_t pinA, uint8_t pinB, uint8_t pinC, uint8_t pinD,
+         uint16_t minPulsewidth, uint16_t maxPulsewidth)
+    : motors{MCU(pinA, 1, minPulsewidth, maxPulsewidth),
+             MCU(pinB, 2, minPulsewidth, maxPulsewidth),
+             MCU(pinC, 3, minPulsewidth, maxPulsewidth),
+             MCU(pinD, 4, minPulsewidth, maxPulsewidth)},
+      throttleState(_throttleState), armState(_armState) {}
 
-void TCS::arm() {
-    Serial.println("Arming all engines");
-    engineA.arm();
-    engineB.arm();
-    engineC.arm();
-    engineD.arm();
+void TCS::begin() {
+    for (auto &m : motors) {
+        m.begin();
+    }
+    updateState();
 }
 
-void TCS::armMotor(int motor) {
-    Serial.println("TCS arming engine " + String(motor));
-    MCU engine = intToEngine(motor);
-    engine.arm();
+void TCS::arm(int8_t motor) {
+    if (motor < 0) {
+        DBG("[TCS] Arming all engines\n");
+        for (auto &m : motors) {
+            m.arm();
+        }
+    } else {
+        DBG_FMT("[TCS] Arming engine %d\n", motor)
+        motors[constrain(motor, 0, 3)].arm();
+    }
+    updateState();
 }
 
-void TCS::disarm() {
-    Serial.println("Disarming all engines");
-    engineA.disarm();
-    engineB.disarm();
-    engineC.disarm();
-    engineD.disarm();
+void TCS::disarm(int8_t motor) {
+    if (motor < 0) {
+        DBG("[TCS] Disarming all engines\n");
+        for (auto &m : motors) {
+            m.disarm();
+        }
+    } else {
+        DBG_FMT("[TCS] Disarming engine %d\n", motor)
+        motors[constrain(motor, 0, 3)].arm();
+    }
+    updateState();
 }
 
-void TCS::disarmMotor(int motor) {
-    Serial.println("TCS disarming engine " + String(motor));
-    MCU engine = intToEngine(motor);
-    engine.disarm();
-}
-
-void TCS::throttle(int motor, float throttle) {
-    Serial.println("TCS setting " + String(throttle) +
-                   "% throttle for engine " + String(motor));
-    MCU engine = intToEngine(motor);
-    engine.setThrottle(throttle);
+void TCS::throttle(uint8_t motor, float throttle) {
+    DBG_FMT("[TCS] Setting %f% throttle for engine %d", throttle, motor);
+    motors[constrain(motor, 0, 3)].setThrottle(throttle);
+    updateState();
 }
 
 void TCS::stop() {
-    engineA.stop();
-    engineB.stop();
-    engineC.stop();
-    engineD.stop();
+    DBG("[TCS] Stopping all motors");
+    for (auto &m : motors) {
+        m.stop();
+    }
+    updateState();
+}
+
+void TCS::updateState() {
+    _throttleState.ThrottleA = motors[0].currentThrottle;
+    _throttleState.ThrottleB = motors[1].currentThrottle;
+    _throttleState.ThrottleC = motors[2].currentThrottle;
+    _throttleState.ThrottleD = motors[3].currentThrottle;
+
+    _armState.ArmedA = motors[0].armed;
+    _armState.ArmedB = motors[1].armed;
+    _armState.ArmedC = motors[2].armed;
+    _armState.ArmedD = motors[3].armed;
 }
 
 void TCS::test() {
-    Serial.println("Testing TCS");
+    DBG("[TCS] Testing\n");
     arm();
     delay(5000);
+    throttle(0, 20);
+    delay(1000);
     throttle(1, 20);
     delay(1000);
     throttle(2, 20);
     delay(1000);
     throttle(3, 20);
-    delay(1000);
-    throttle(4, 20);
     delay(1000);
     stop();
     delay(2500);
+    throttle(0, 20);
     throttle(1, 20);
     throttle(2, 20);
     throttle(3, 20);
-    throttle(4, 20);
     delay(5000);
     disarm();
+    throttle(0, 20);
     throttle(1, 20);
     throttle(2, 20);
     throttle(3, 20);
-    throttle(4, 20);
     delay(1500);
 
-    Serial.println("Testing for TCS finished!");
-}
-
-void TCS::testMotor(int motor) {
-    MCU engine = intToEngine(motor);
-    engine.test();
-}
-
-float TCS::getThrottle(int motor) {
-    MCU engine = intToEngine(motor);
-    return engine.currentThrottle;
-}
-
-bool TCS::isArmed(int motor) {
-    MCU engine = intToEngine(motor);
-    return engine.armed;
-}
-
-MCU TCS::intToEngine(int motor) {
-    switch (motor) {
-    case 1:
-        return engineA;
-    case 2:
-        return engineB;
-    case 3:
-        return engineC;
-    case 4:
-        return engineD;
-    default:
-        return engineA;
-    }
+    DBG("[TCS] Testing complete\n");
 }
