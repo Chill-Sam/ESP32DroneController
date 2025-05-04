@@ -126,3 +126,12 @@ document.getElementById("connect").addEventListener("click", function () {
             .join("");
     }
 });
+
+function tune(axis, tuningData) {
+    socket.send(
+        JSON.stringify({
+            type: "pid",
+            payload: { axis: axis, tuningData: tuningData },
+        }),
+    );
+}
