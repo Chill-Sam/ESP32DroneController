@@ -30,15 +30,15 @@ class FCS {
     PID innerYaw{0.0F, 0.0F, 0.0F};
     PID innerAlt{0.0F, 0.0F, 0.0F};
 
-    float pitchCommand = 0;
-    float rollCommand = 0;
-    float yawCommand = 0;
-    float altCommand = 0;
+    float pitchCommand = 0.0F;
+    float rollCommand = 0.0F;
+    float yawCommand = 0.0F;
+    float altCommand = 0.0F;
 
     void updateMotorSpeed();
     void updateMotorArming();
     void updatePID();
-    void tunePID(PIDTuningState tuning);
+    void tunePID(const PIDTuningState &tuning);
     void updateState();
     void arm();
     void disarm();

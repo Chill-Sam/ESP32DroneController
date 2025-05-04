@@ -1,5 +1,3 @@
-#define DEBUG "debug"
-
 #include "FlightController.h"
 #include "types/ControlData.h"
 #include "types/FlightData.h"
@@ -18,7 +16,9 @@ void FCS::begin() {
     rc.onDisconnect = [this]() { this->failsafe(); };
     rc.onTestRequest = [this]() { this->tcs.test(); };
     rc.onAuthenticateSuccess = [this]() { this->startLoop(); };
-    rc.onPIDTune = [this](PIDTuningState tuning) { this->tunePID(tuning); };
+    rc.onPIDTune = [this](const PIDTuningState &tuning) {
+        this->tunePID(tuning);
+    };
 }
 
 void FCS::startLoop() {
@@ -29,7 +29,13 @@ void FCS::startLoop() {
 void FCS::control(void *pvParameters) {
     FCS *fcs = static_cast<FCS *>(pvParameters);
 
-    const TickType_t rate = pdMS_TO_TICKS(2); // 500 Hz
+#ifdef DEBUG
+#define FCS_LOOP_PERIOD_MS 100
+#else
+#define FCS_LOOP_PERIOD_MS 2
+#endif // !DEBUG
+
+    const TickType_t rate = pdMS_TO_TICKS(FCS_LOOP_PERIOD_MS); // 500 Hz
     TickType_t last = xTaskGetTickCount();
 
     while (true) {
@@ -116,24 +122,28 @@ void FCS::updatePID() {
     // Outer PIDs
     float pitchRateSetpoint = outerPitch.calc(state.setpointState.setpointPitch,
                                               state.orientation.pitch);
-    float rollRateSetpoint = outerPitch.calc(state.setpointState.setpointRoll,
-                                             state.orientation.roll);
+    float rollRateSetpoint = outerRoll.calc(state.setpointState.setpointRoll,
+                                            state.orientation.roll);
     float yawRateSetpoint =
-        outerPitch.calc(state.setpointState.setpointYaw, state.orientation.yaw);
-    float altRateSetpoint = outerPitch.calc(
-        state.setpointState.setpointAltitude, state.orientation.alt);
+        outerYaw.calc(state.setpointState.setpointYaw, state.orientation.yaw);
+    float altRateSetpoint = outerAlt.calc(state.setpointState.setpointAltitude,
+                                          state.orientation.alt);
+
+    // DBG_FMT("[FCS] Outer: Pitch: %f | Roll: %f | Yaw: %f | Alt: %f\n",
+    //  pitchRateSetpoint, rollRateSetpoint, yawRateSetpoint,
+    //  altRateSetpoint);
 
     // Inner PIDs
     pitchCommand = innerPitch.calc(pitchRateSetpoint, state.speedData.gx);
-    rollCommand = innerPitch.calc(rollRateSetpoint, state.speedData.gy);
-    yawCommand = innerPitch.calc(yawRateSetpoint, state.speedData.gz);
-    altCommand = innerPitch.calc(altRateSetpoint, state.speedData.alt);
+    rollCommand = innerRoll.calc(rollRateSetpoint, state.speedData.gy);
+    yawCommand = innerYaw.calc(yawRateSetpoint, state.speedData.gz);
+    altCommand = innerAlt.calc(altRateSetpoint, state.speedData.alt);
 
-    DBG_FMT("[FCS] Pitch: %f | Roll: %f | Yaw: %f | Alt: %f\n", pitchCommand,
-            rollCommand, yawCommand, altCommand);
+    // DBG_FMT("[FCS] Pitch: %f | Roll: %f | Yaw: %f | Alt: %f\n", pitchCommand,
+    //         rollCommand, yawCommand, altCommand);
 }
 
-void FCS::tunePID(PIDTuningState tuning) {
+void FCS::tunePID(const PIDTuningState &tuning) {
     String axis = tuning.axis;
     if (axis == "Pitch") {
         DBG("[FCS] Tuning pitch\n");
@@ -160,16 +170,16 @@ void FCS::tunePID(PIDTuningState tuning) {
 void FCS::updateState() {
     DBG("[FCS] Updating state\n");
     // Update AHRS states
-    state.orientation = ahrs.getOrientation();
-    state.speedData = ahrs.getSpeedData();
+    state.orientation = ahrs.orientation;
+    state.speedData = ahrs.speedData;
 
     // Update TCS states
     state.throttleState = tcs.throttleState;
     state.armState = tcs.armState;
 
     // Update RC states
-    state.setpointState = rc.getSetpointState();
-    state.rcArmingState = rc.getArmingState();
+    state.setpointState = rc.setpointState;
+    state.rcArmingState = rc.armingState;
 }
 
 void FCS::arm() {

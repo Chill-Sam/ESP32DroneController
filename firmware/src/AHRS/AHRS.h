@@ -11,8 +11,8 @@ class AHRS {
 
     void begin();
 
-    Orientation getOrientation();
-    SpeedData getSpeedData();
+    const Orientation &orientation;
+    const SpeedData &speedData;
 
   private:
     QMC5883LCompass compass;

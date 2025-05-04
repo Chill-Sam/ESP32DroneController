@@ -25,7 +25,7 @@ void TCS::arm(int8_t motor) {
             m.arm();
         }
     } else {
-        DBG_FMT("[TCS] Arming engine %d\n", motor)
+        DBG_FMT("[TCS] Arming engine %d\n", motor);
         motors[constrain(motor, 0, 3)].arm();
     }
     updateState();
@@ -38,14 +38,14 @@ void TCS::disarm(int8_t motor) {
             m.disarm();
         }
     } else {
-        DBG_FMT("[TCS] Disarming engine %d\n", motor)
+        DBG_FMT("[TCS] Disarming engine %d\n", motor);
         motors[constrain(motor, 0, 3)].arm();
     }
     updateState();
 }
 
 void TCS::throttle(uint8_t motor, float throttle) {
-    DBG_FMT("[TCS] Setting %f% throttle for engine %d", throttle, motor);
+    DBG_FMT("[TCS] Setting %f% throttle for engine %u", throttle, motor);
     motors[constrain(motor, 0, 3)].setThrottle(throttle);
     updateState();
 }
@@ -58,17 +58,17 @@ void TCS::stop() {
     updateState();
 }
 
-void TCS::updateState() {
-    _throttleState.ThrottleA = motors[0].currentThrottle;
-    _throttleState.ThrottleB = motors[1].currentThrottle;
-    _throttleState.ThrottleC = motors[2].currentThrottle;
-    _throttleState.ThrottleD = motors[3].currentThrottle;
-
-    _armState.ArmedA = motors[0].armed;
-    _armState.ArmedB = motors[1].armed;
-    _armState.ArmedC = motors[2].armed;
-    _armState.ArmedD = motors[3].armed;
-}
+void TCS::updateState() {}
+//     _throttleState.ThrottleA = motors[0].currentThrottle;
+//     _throttleState.ThrottleB = motors[1].currentThrottle;
+//     _throttleState.ThrottleC = motors[2].currentThrottle;
+//     _throttleState.ThrottleD = motors[3].currentThrottle;
+//
+//     _armState.ArmedA = motors[0].armed;
+//     _armState.ArmedB = motors[1].armed;
+//     _armState.ArmedC = motors[2].armed;
+//     _armState.ArmedD = motors[3].armed;
+// }
 
 void TCS::test() {
     DBG("[TCS] Testing\n");

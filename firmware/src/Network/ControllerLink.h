@@ -12,13 +12,14 @@ class ControllerLink {
     void begin();
     void updateTelemetry(const DroneState &state);
 
-    SetpointState getSetpointState();
-    RCArmingState getArmingState();
+    const SetpointState &setpointState;
+    const RCArmingState &armingState;
 
-    std::function<void()> onAuthenticateSuccess;
-    std::function<void()> onTestRequest;
-    std::function<void()> onDisconnect;
-    std::function<void(PIDTuningState tuning)> onPIDTune;
+    std::function<void()> onAuthenticateSuccess = []() {};
+    std::function<void()> onTestRequest = []() {};
+    std::function<void()> onDisconnect = []() {};
+    std::function<void(const PIDTuningState &tuning)> onPIDTune =
+        [](const PIDTuningState &tuning) {};
 
   private:
     const bool &isAuthenticated;
@@ -28,6 +29,7 @@ class ControllerLink {
 
     WebSocketsClient client;
     JsonDocument telemetryBuffer;
+    bool telemetryReady = false;
 
     void beginConnection();
     void webSocketEvent(WStype_t type, uint8_t *payload, size_t length);

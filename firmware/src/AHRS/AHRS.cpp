@@ -1,10 +1,6 @@
 #include "AHRS.h"
 
-namespace {
-portMUX_TYPE ahrsMux = portMUX_INITIALIZER_UNLOCKED;
-}
-
-AHRS::AHRS() = default;
+AHRS::AHRS() : orientation(_orientation), speedData(_speedData) {};
 
 void AHRS::begin() {
     MPU6000::initializeMPU();
@@ -60,7 +56,6 @@ void AHRS::sensorTask(void *pvParameters) {
         self->filter.update(gxNed, gyNed, gzNed, axNed, ayNed, azNed, mxNed,
                             myNed, mzNed);
 
-        taskENTER_CRITICAL(&ahrsMux);
         // === GET ORIENTATION ===
         self->_orientation.pitch = self->filter.getPitch();
         self->_orientation.roll = self->filter.getRoll();
@@ -70,24 +65,7 @@ void AHRS::sensorTask(void *pvParameters) {
         self->_speedData.gx = gxNed;
         self->_speedData.gy = gyNed;
         self->_speedData.gz = gzNed;
-        taskEXIT_CRITICAL(&ahrsMux);
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
-}
-
-Orientation AHRS::getOrientation() {
-    Orientation copy;
-    portENTER_CRITICAL(&ahrsMux);
-    copy = _orientation;
-    portEXIT_CRITICAL(&ahrsMux);
-    return copy;
-}
-
-SpeedData AHRS::getSpeedData() {
-    SpeedData copy;
-    portENTER_CRITICAL(&ahrsMux);
-    copy = _speedData;
-    portEXIT_CRITICAL(&ahrsMux);
-    return copy;
 }

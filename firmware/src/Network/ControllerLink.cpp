@@ -1,4 +1,7 @@
+#define DEBUG 1
+
 #include "ControllerLink.h"
+#include "freertos/portmacro.h"
 #include "types/ControlData.h"
 #include "utils/log.h"
 #include <ArduinoJson.h>
@@ -17,12 +20,9 @@
 
 #define CONTROL_ANGLE 20
 
-namespace {
-portMUX_TYPE rcMux = portMUX_INITIALIZER_UNLOCKED;
-portMUX_TYPE telemetryMux = portMUX_INITIALIZER_UNLOCKED;
-} // namespace
-
-ControllerLink::ControllerLink() : isAuthenticated(_authenticated) {}
+ControllerLink::ControllerLink()
+    : isAuthenticated(_authenticated), setpointState(_setpointState),
+      armingState(_armingState) {}
 
 void ControllerLink::begin() {
     xTaskCreatePinnedToCore(webSocketTask, "websocket", 4096, this, 1, nullptr,
@@ -44,16 +44,20 @@ void ControllerLink::webSocketTask(void *pvParameters) {
 
         const unsigned long now = millis();
         const bool shouldSendTelemetry =
-            rc->isAuthenticated && (now - lastTelemetry >= 100);
+            rc->isAuthenticated && (now - lastTelemetry >= telemetryInterval) &&
+            rc->telemetryReady;
 
-        if (shouldSendTelemetry) {
-            lastTelemetry = now;
-            String telemetry;
-            portENTER_CRITICAL(&telemetryMux);
-            serializeJson(rc->telemetryBuffer, telemetry);
-            portEXIT_CRITICAL(&telemetryMux);
-            rc->client.sendTXT(telemetry);
-        }
+        // if (shouldSendTelemetry) {
+        //     lastTelemetry = now;
+        //     if (!rc->telemetryBuffer.isNull()) {
+        //         String telemetry;
+        //         serializeJson(rc->telemetryBuffer, telemetry);
+        //         if (telemetry.length() > 0) {
+        //             DBG("[WSS] Sending telemetry");
+        //             rc->client.sendTXT(telemetry);
+        //         }
+        //     }
+        // }
 
         vTaskDelayUntil(&last, rate);
     }
@@ -118,7 +122,7 @@ void ControllerLink::handlePayload(uint8_t *payload) {
 void ControllerLink::authenticate(const char *nonce) {
     DBG("Attempting authentication\n");
     String reply = computeHMACSHA256(SECRET_PASS, nonce);
-    DBG_FMT("Computed hash: %s\n", reply);
+    DBG("Computed hash: " + reply + "\n");
 
     JsonDocument response;
     response["role"] = "drone";
@@ -133,14 +137,18 @@ void ControllerLink::authenticate(const char *nonce) {
 void ControllerLink::onAuthenticate() {
     DBG("Successfully authenticated");
     _authenticated = true;
-    onAuthenticateSuccess();
+    if (onAuthenticateSuccess) {
+        onAuthenticateSuccess();
+    }
 }
 
 void ControllerLink::handleCommand(JsonObjectConst command) {
     // Handle a test commnad
     JsonVariantConst testFlag = command["test"];
     if (testFlag != nullptr && testFlag.as<bool>() && onTestRequest) {
-        onTestRequest();
+        if (onTestRequest) {
+            onTestRequest();
+        }
     }
 
     JsonObjectConst joysticks = command["joysticks"];
@@ -164,13 +172,11 @@ void ControllerLink::handleCommand(JsonObjectConst command) {
 
     JsonArrayConst arming = command["arming"];
     if (arming != nullptr && arming.size() == 5) {
-        portENTER_CRITICAL(&rcMux);
         _armingState.RCArmedFCU = arming[0];
         _armingState.RCArmedA = arming[1];
         _armingState.RCArmedB = arming[2];
         _armingState.RCArmedC = arming[3];
         _armingState.RCArmedD = arming[4];
-        portEXIT_CRITICAL(&rcMux);
     }
 }
 
@@ -192,14 +198,12 @@ void ControllerLink::calculateSetpoints(Joystick left, Joystick right) {
                    1.0F); // m/s
     };
 
-    portENTER_CRITICAL(&rcMux);
     _setpointState.setpointPitch = scaleInput(right.y);
     _setpointState.setpointRoll = scaleInput(right.x);
     _setpointState.setpointYaw = scaleInput(left.x);
 
     float verticalVelocity = scaleAltitudeRate(left.y);
     _setpointState.setpointAltitude += verticalVelocity * dt;
-    portEXIT_CRITICAL(&rcMux);
 }
 
 void ControllerLink::updatePIDTuning(JsonObjectConst tuning) const {
@@ -222,7 +226,9 @@ void ControllerLink::updatePIDTuning(JsonObjectConst tuning) const {
     tuningCommand.outerI = tuningData[4];
     tuningCommand.outerD = tuningData[5];
 
-    onPIDTune(tuningCommand);
+    if (onPIDTune) {
+        onPIDTune(tuningCommand);
+    }
 }
 
 void ControllerLink::updateTelemetry(const DroneState &state) {
@@ -230,7 +236,8 @@ void ControllerLink::updateTelemetry(const DroneState &state) {
         return;
     }
 
-    portENTER_CRITICAL(&telemetryMux);
+    telemetryReady = false;
+
     telemetryBuffer.clear();
     telemetryBuffer["type"] = "telemetry";
 
@@ -249,30 +256,15 @@ void ControllerLink::updateTelemetry(const DroneState &state) {
     o.add(state.orientation.roll);
     o.add(state.orientation.yaw);
     o.add(state.orientation.alt);
-    portEXIT_CRITICAL(&telemetryMux);
-}
 
-SetpointState ControllerLink::getSetpointState() {
-    SetpointState copy;
-    portENTER_CRITICAL(&rcMux);
-    copy = _setpointState;
-    portEXIT_CRITICAL(&rcMux);
-    return copy;
-}
-
-RCArmingState ControllerLink::getArmingState() {
-    RCArmingState copy;
-    portENTER_CRITICAL(&rcMux);
-    copy = _armingState;
-    portEXIT_CRITICAL(&rcMux);
-    return copy;
+    telemetryReady = true;
 }
 
 String ControllerLink::computeHMACSHA256(const String &key,
                                          const String &data) {
     const mbedtls_md_info_t *mdInfo =
         mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    if (mdInfo != nullptr) {
+    if (mdInfo == nullptr) {
         DBG("[HMAC] Failed to get SHA256 md info.");
 
         return "";

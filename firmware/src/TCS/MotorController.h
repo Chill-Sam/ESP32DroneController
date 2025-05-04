@@ -23,7 +23,7 @@ class MCU {
 
     const uint16_t minPulsewidth_us;
     const uint16_t maxPulsewidth_us;
-    const uint8_t channel;
+    const uint8_t channel = 0;
 
     ESCDriver esc;
 };

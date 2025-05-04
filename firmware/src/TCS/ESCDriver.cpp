@@ -11,12 +11,12 @@ void ESCDriver::begin() const {
 }
 
 void ESCDriver::write(uint16_t pulsewidth) const {
-    DBG_FMT("[ESC] Writing pulsewidth %f to channel %d\n", pulsewidth, channel);
+    DBG_FMT("[ESC] Writing pulsewidth %u to channel %u\n", pulsewidth, channel);
     ledcWrite(channel, pulseWidthToDutyCycle(pulsewidth));
 }
 
 void ESCDriver::stop() const {
-    DBG_FMT("[ESC] Stopping channel %d\n", channel);
+    // DBG_FMT("[ESC] Stopping channel %u\n", channel);
     ledcWrite(channel, pulseWidthToDutyCycle(minPulsewidth_us));
 }
 
