@@ -1,4 +1,7 @@
+#define DEBUG "debug"
+
 #include "FlightController.h"
+#include "types/ControlData.h"
 #include "types/FlightData.h"
 #include "utils/log.h"
 
@@ -15,6 +18,7 @@ void FCS::begin() {
     rc.onDisconnect = [this]() { this->failsafe(); };
     rc.onTestRequest = [this]() { this->tcs.test(); };
     rc.onAuthenticateSuccess = [this]() { this->startLoop(); };
+    rc.onPIDTune = [this](PIDTuningState tuning) { this->tunePID(tuning); };
 }
 
 void FCS::startLoop() {
@@ -33,7 +37,7 @@ void FCS::control(void *pvParameters) {
 
         // Prevent further action if drone is in FAILSAFE
         if (fcs->state.flightMode == FlightMode::FAILSAFE) {
-            DBG("[FCS] FAILSAFE")
+            DBG("[FCS] FAILSAFE\n");
             vTaskDelayUntil(&last, rate);
             continue;
         }
@@ -49,7 +53,7 @@ void FCS::control(void *pvParameters) {
         }
 
         if (fcs->state.flightMode == FlightMode::DISARMED) {
-            DBG("[FCS] Currently disarmed");
+            DBG("[FCS] Currently disarmed\n");
             fcs->tcs.disarm();
             fcs->tcs.stop();
             vTaskDelayUntil(&last, rate);
@@ -57,7 +61,7 @@ void FCS::control(void *pvParameters) {
         } // Drone should be armed if it passes this
 
         if (fcs->state.flightMode != FlightMode::ARMED) {
-            DBG("[FCS] PANIC: unreachable");
+            DBG("[FCS] PANIC: unreachable\n");
             fcs->failsafe();
             vTaskDelayUntil(&last, rate);
             continue;
@@ -125,12 +129,36 @@ void FCS::updatePID() {
     yawCommand = innerPitch.calc(yawRateSetpoint, state.speedData.gz);
     altCommand = innerPitch.calc(altRateSetpoint, state.speedData.alt);
 
-    DBG_FMT("Pitch: %f | Roll: %f | Yaw: %f | Alt: %f\n", pitchCommand,
+    DBG_FMT("[FCS] Pitch: %f | Roll: %f | Yaw: %f | Alt: %f\n", pitchCommand,
             rollCommand, yawCommand, altCommand);
 }
 
+void FCS::tunePID(PIDTuningState tuning) {
+    String axis = tuning.axis;
+    if (axis == "Pitch") {
+        DBG("[FCS] Tuning pitch\n");
+        innerPitch.tune(tuning.innerP, tuning.innerI, tuning.innerD);
+        outerPitch.tune(tuning.outerP, tuning.outerI, tuning.outerD);
+    }
+    if (axis == "Roll") {
+        DBG("[FCS] Tuning roll\n");
+        innerRoll.tune(tuning.innerP, tuning.innerI, tuning.innerD);
+        outerRoll.tune(tuning.outerP, tuning.outerI, tuning.outerD);
+    }
+    if (axis == "Yaw") {
+        DBG("[FCS] Tuning yaw\n");
+        innerYaw.tune(tuning.innerP, tuning.innerI, tuning.innerD);
+        outerYaw.tune(tuning.outerP, tuning.outerI, tuning.outerD);
+    }
+    if (axis == "Alt") {
+        DBG("[FCS] Tuning alt\n");
+        innerAlt.tune(tuning.innerP, tuning.innerI, tuning.innerD);
+        outerAlt.tune(tuning.outerP, tuning.outerI, tuning.outerD);
+    }
+}
+
 void FCS::updateState() {
-    DBG("[FCS] Updating state");
+    DBG("[FCS] Updating state\n");
     // Update AHRS states
     state.orientation = ahrs.getOrientation();
     state.speedData = ahrs.getSpeedData();
@@ -147,12 +175,12 @@ void FCS::updateState() {
 void FCS::arm() {
     switch (state.flightMode) {
     case FlightMode::FAILSAFE:
-        DBG("[FCS] Cannot arm, FAILSAFE");
+        DBG("[FCS] Cannot arm, FAILSAFE\n");
         return;
     case FlightMode::ARMED:
         return;
     case FlightMode::DISARMED:
-        DBG("[FCS] Arming");
+        DBG("[FCS] Arming\n");
         state.flightMode = FlightMode::ARMED;
         tcs.stop();
         return;
@@ -162,10 +190,10 @@ void FCS::arm() {
 void FCS::disarm() {
     switch (state.flightMode) {
     case FlightMode::FAILSAFE:
-        DBG("[FCS] Cannot disarm, FAILSAFE");
+        DBG("[FCS] Cannot disarm, FAILSAFE\n");
         return;
     case FlightMode::ARMED:
-        DBG("[FCS] Disarming");
+        DBG("[FCS] Disarming\n");
         state.flightMode = FlightMode::DISARMED;
         tcs.stop();
         return;
@@ -175,7 +203,7 @@ void FCS::disarm() {
 }
 
 void FCS::failsafe() {
-    DBG("[FCS] FAILSAFE ACTIVE");
+    DBG("[FCS] FAILSAFE ACTIVE\n");
     state.flightMode = FlightMode::FAILSAFE;
     tcs.disarm();
 }

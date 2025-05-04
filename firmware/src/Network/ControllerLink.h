@@ -18,6 +18,7 @@ class ControllerLink {
     std::function<void()> onAuthenticateSuccess;
     std::function<void()> onTestRequest;
     std::function<void()> onDisconnect;
+    std::function<void(PIDTuningState tuning)> onPIDTune;
 
   private:
     const bool &isAuthenticated;
@@ -35,6 +36,7 @@ class ControllerLink {
     void onAuthenticate();
     void handleCommand(JsonObjectConst command);
     void calculateSetpoints(Joystick left, Joystick right);
+    void updatePIDTuning(JsonObjectConst tuning) const;
 
     static void webSocketTask(void *pvParameters);
     static String computeHMACSHA256(const String &key, const String &data);

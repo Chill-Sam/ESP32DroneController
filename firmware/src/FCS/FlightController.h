@@ -4,6 +4,7 @@
 #include "Network/ControllerLink.h"
 #include "PID.h"
 #include "TCS/ThrustController.h"
+#include "types/ControlData.h"
 #include "types/DroneState.h"
 
 class FCS {
@@ -19,15 +20,15 @@ class FCS {
     TCS tcs;
     ControllerLink rc;
 
-    PID outerPitch{1.0F, 1.0F, 1.0F};
-    PID outerRoll{1.0F, 1.0F, 1.0F};
-    PID outerYaw{1.0F, 1.0F, 1.0F};
-    PID outerAlt{1.0F, 1.0F, 1.0F};
+    PID outerPitch{0.0F, 0.0F, 0.0F};
+    PID outerRoll{0.0F, 0.0F, 0.0F};
+    PID outerYaw{0.0F, 0.0F, 0.0F};
+    PID outerAlt{0.0F, 0.0F, 0.0F};
 
-    PID innerPitch{1.0F, 1.0F, 1.0F};
-    PID innerRoll{1.0F, 1.0F, 1.0F};
-    PID innerYaw{1.0F, 1.0F, 1.0F};
-    PID innerAlt{1.0F, 1.0F, 1.0F};
+    PID innerPitch{0.0F, 0.0F, 0.0F};
+    PID innerRoll{0.0F, 0.0F, 0.0F};
+    PID innerYaw{0.0F, 0.0F, 0.0F};
+    PID innerAlt{0.0F, 0.0F, 0.0F};
 
     float pitchCommand = 0;
     float rollCommand = 0;
@@ -37,6 +38,7 @@ class FCS {
     void updateMotorSpeed();
     void updateMotorArming();
     void updatePID();
+    void tunePID(PIDTuningState tuning);
     void updateState();
     void arm();
     void disarm();

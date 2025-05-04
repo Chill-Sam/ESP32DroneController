@@ -1,11 +1,11 @@
 #include "ControllerLink.h"
-#include "freertos/portmacro.h"
 #include "types/ControlData.h"
 #include "utils/log.h"
 #include <ArduinoJson.h>
 #include <WebSocketsClient.h>
 #include <WiFi.h>
 #include <cstring>
+#include <math.h>
 #include <mbedtls/md.h>
 
 #define WIFI_SSID ""
@@ -110,6 +110,8 @@ void ControllerLink::handlePayload(uint8_t *payload) {
         onAuthenticate();
     } else if (command != nullptr && strcmp(command, "command") == 0) {
         handleCommand(json["payload"].as<JsonObjectConst>());
+    } else if (command != nullptr && strcmp(command, "pid") == 0) {
+        updatePIDTuning(json["payload"].as<JsonObjectConst>());
     }
 }
 
@@ -198,6 +200,29 @@ void ControllerLink::calculateSetpoints(Joystick left, Joystick right) {
     float verticalVelocity = scaleAltitudeRate(left.y);
     _setpointState.setpointAltitude += verticalVelocity * dt;
     portEXIT_CRITICAL(&rcMux);
+}
+
+void ControllerLink::updatePIDTuning(JsonObjectConst tuning) const {
+    JsonVariantConst type = tuning["axis"];
+    if (type == nullptr) {
+        return;
+    }
+
+    JsonArrayConst tuningData = tuning["tuningData"];
+    if (tuningData == nullptr || tuningData.size() != 6) {
+        return;
+    }
+
+    PIDTuningState tuningCommand;
+    tuningCommand.axis = type.as<String>();
+    tuningCommand.innerP = tuningData[0];
+    tuningCommand.innerI = tuningData[1];
+    tuningCommand.innerD = tuningData[2];
+    tuningCommand.outerP = tuningData[3];
+    tuningCommand.outerI = tuningData[4];
+    tuningCommand.outerD = tuningData[5];
+
+    onPIDTune(tuningCommand);
 }
 
 void ControllerLink::updateTelemetry(const DroneState &state) {

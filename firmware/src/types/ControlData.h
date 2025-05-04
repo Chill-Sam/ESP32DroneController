@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Arduino.h>
+
 struct Joystick {
     float x = 0.0F;
     float y = 0.0F;
@@ -18,4 +20,14 @@ struct RCArmingState {
     bool RCArmedB = false;
     bool RCArmedC = false;
     bool RCArmedD = false;
+};
+
+struct PIDTuningState {
+    String axis = "NONE";
+    float innerP = 0.0F;
+    float innerI = 0.0F;
+    float innerD = 0.0F;
+    float outerP = 0.0F;
+    float outerI = 0.0F;
+    float outerD = 0.0F;
 };
