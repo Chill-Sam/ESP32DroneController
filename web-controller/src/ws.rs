@@ -58,7 +58,7 @@ pub async fn echo(req: HttpRequest, body: web::Payload) -> Result<HttpResponse, 
             };
 
             match (role.as_str(), msg_type.as_str()) {
-                ("controller", "command") | ("drone", "telemetry") => {
+                ("controller", "command") | ("controller", "pid") | ("drone", "telemetry") => {
                     let clients = CLIENTS.lock().unwrap();
                     if let Some(target_session) = clients.get(target) {
                         let mut target = target_session.clone();
