@@ -135,10 +135,17 @@ void FCS::updateMotorArming() {
         state.rcArmingState.RCArmedD,
     };
 
+    const bool currentArmStates[] = {
+        state.armState.ArmedA,
+        state.armState.ArmedB,
+        state.armState.ArmedC,
+        state.armState.ArmedD,
+    };
+
     for (uint8_t i = 0; i < 4; ++i) {
-        if (armStates[i]) {
+        if (armStates[i] && !currentArmStates[i]) {
             tcs.arm(i);
-        } else {
+        } else if (!armStates[i] && currentArmStates[i]) {
             tcs.disarm(i);
         }
     }
