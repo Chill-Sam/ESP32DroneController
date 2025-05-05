@@ -14,7 +14,11 @@ void FCS::begin() {
     rc.begin();
 
     rc.onDisconnect = [this]() { this->failsafe(); };
-    rc.onTestRequest = [this]() { this->tcs.test(); };
+    rc.onTestRequest = [this]() {
+        this->testing = true;
+        this->tcs.test();
+        this->testing = false;
+    };
     rc.onAuthenticateSuccess = [this]() { this->startLoop(); };
     rc.onPIDTune = [this](const PIDTuningState &tuning) {
         this->tunePID(tuning);
@@ -23,7 +27,23 @@ void FCS::begin() {
 
 void FCS::startLoop() {
     // Create main control loop task on core 1 with medium priority
-    xTaskCreatePinnedToCore(control, "FCU Control", 4092, this, 2, nullptr, 1);
+    xTaskCreatePinnedToCore(control, "FCU Control", 4096, this, 2, nullptr, 1);
+
+    // Create telemetry update task on core 0 with low priority
+    xTaskCreatePinnedToCore(telemetry, "Update Telemetry", 4096, this, 0,
+                            nullptr, 0);
+}
+
+void FCS::telemetry(void *pvParameters) {
+    FCS *fcs = static_cast<FCS *>(pvParameters);
+
+    const TickType_t rate = pdMS_TO_TICKS(100); // 10 Hz
+    TickType_t last = xTaskGetTickCount();
+
+    while (true) {
+        fcs->rc.updateTelemetry(fcs->state);
+        vTaskDelayUntil(&last, rate);
+    }
 }
 
 void FCS::control(void *pvParameters) {
@@ -51,6 +71,11 @@ void FCS::control(void *pvParameters) {
         // We update PIDs before ARM check to keep the PIDs consistent.
         fcs->updatePID();
 
+        if (fcs->testing) {
+            vTaskDelayUntil(&last, rate);
+            continue;
+        }
+
         // Arm/Disarm FCS first before DISARM/ARM check
         if (fcs->state.rcArmingState.RCArmedFCU) {
             fcs->arm();
@@ -67,7 +92,7 @@ void FCS::control(void *pvParameters) {
         } // Drone should be armed if it passes this
 
         if (fcs->state.flightMode != FlightMode::ARMED) {
-            DBG("[FCS] PANIC: unreachable\n");
+            DBGCRT("[FCS] PANIC: unreachable\n");
             fcs->failsafe();
             vTaskDelayUntil(&last, rate);
             continue;
@@ -94,11 +119,10 @@ void FCS::updateMotorSpeed() {
     float brThrust = altCommand - pitchCommand - rollCommand -
                      yawCommand; // Back Right  (Motor 3)
 
-    tcs.throttle(0, 0);
-    tcs.throttle(1, 0);
-    tcs.throttle(2, 0);
-    tcs.throttle(3, 0);
-    // Actually throttle them here
+    tcs.throttle(0, blThrust);
+    tcs.throttle(1, trThrust);
+    tcs.throttle(2, blThrust);
+    tcs.throttle(3, tlThrust);
 }
 
 void FCS::updateMotorArming() {
@@ -129,39 +153,35 @@ void FCS::updatePID() {
     float altRateSetpoint = outerAlt.calc(state.setpointState.setpointAltitude,
                                           state.orientation.alt);
 
-    // DBG_FMT("[FCS] Outer: Pitch: %f | Roll: %f | Yaw: %f | Alt: %f\n",
-    //  pitchRateSetpoint, rollRateSetpoint, yawRateSetpoint,
-    //  altRateSetpoint);
-
     // Inner PIDs
     pitchCommand = innerPitch.calc(pitchRateSetpoint, state.speedData.gx);
     rollCommand = innerRoll.calc(rollRateSetpoint, state.speedData.gy);
     yawCommand = innerYaw.calc(yawRateSetpoint, state.speedData.gz);
     altCommand = innerAlt.calc(altRateSetpoint, state.speedData.alt);
 
-    // DBG_FMT("[FCS] Pitch: %f | Roll: %f | Yaw: %f | Alt: %f\n", pitchCommand,
-    //         rollCommand, yawCommand, altCommand);
+    DBG_FMT("[FCS] Pitch: %f | Roll: %f | Yaw: %f | Alt: %f\n", pitchCommand,
+            rollCommand, yawCommand, altCommand);
 }
 
 void FCS::tunePID(const PIDTuningState &tuning) {
     String axis = tuning.axis;
     if (axis == "Pitch") {
-        DBG("[FCS] Tuning pitch\n");
+        DBGCRT("[FCS] Tuning pitch\n");
         innerPitch.tune(tuning.innerP, tuning.innerI, tuning.innerD);
         outerPitch.tune(tuning.outerP, tuning.outerI, tuning.outerD);
     }
     if (axis == "Roll") {
-        DBG("[FCS] Tuning roll\n");
+        DBGCRT("[FCS] Tuning roll\n");
         innerRoll.tune(tuning.innerP, tuning.innerI, tuning.innerD);
         outerRoll.tune(tuning.outerP, tuning.outerI, tuning.outerD);
     }
     if (axis == "Yaw") {
-        DBG("[FCS] Tuning yaw\n");
+        DBGCRT("[FCS] Tuning yaw\n");
         innerYaw.tune(tuning.innerP, tuning.innerI, tuning.innerD);
         outerYaw.tune(tuning.outerP, tuning.outerI, tuning.outerD);
     }
     if (axis == "Alt") {
-        DBG("[FCS] Tuning alt\n");
+        DBGCRT("[FCS] Tuning alt\n");
         innerAlt.tune(tuning.innerP, tuning.innerI, tuning.innerD);
         outerAlt.tune(tuning.outerP, tuning.outerI, tuning.outerD);
     }
@@ -185,12 +205,12 @@ void FCS::updateState() {
 void FCS::arm() {
     switch (state.flightMode) {
     case FlightMode::FAILSAFE:
-        DBG("[FCS] Cannot arm, FAILSAFE\n");
+        DBGCRT("[FCS] Cannot arm, FAILSAFE\n");
         return;
     case FlightMode::ARMED:
         return;
     case FlightMode::DISARMED:
-        DBG("[FCS] Arming\n");
+        DBGCRT("[FCS] Arming\n");
         state.flightMode = FlightMode::ARMED;
         tcs.stop();
         return;
@@ -200,10 +220,10 @@ void FCS::arm() {
 void FCS::disarm() {
     switch (state.flightMode) {
     case FlightMode::FAILSAFE:
-        DBG("[FCS] Cannot disarm, FAILSAFE\n");
+        DBGCRT("[FCS] Cannot disarm, FAILSAFE\n");
         return;
     case FlightMode::ARMED:
-        DBG("[FCS] Disarming\n");
+        DBGCRT("[FCS] Disarming\n");
         state.flightMode = FlightMode::DISARMED;
         tcs.stop();
         return;
@@ -213,7 +233,7 @@ void FCS::disarm() {
 }
 
 void FCS::failsafe() {
-    DBG("[FCS] FAILSAFE ACTIVE\n");
+    DBGCRT("[FCS] FAILSAFE ACTIVE\n");
     state.flightMode = FlightMode::FAILSAFE;
     tcs.disarm();
 }

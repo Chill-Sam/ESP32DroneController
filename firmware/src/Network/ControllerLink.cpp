@@ -1,5 +1,3 @@
-#define DEBUG 1
-
 #include "ControllerLink.h"
 #include "freertos/portmacro.h"
 #include "types/ControlData.h"
@@ -37,7 +35,7 @@ void ControllerLink::webSocketTask(void *pvParameters) {
     rc->beginConnection();
 
     unsigned long lastTelemetry = 0;
-    const unsigned long telemetryInterval = 100; // 10 Hz
+    const unsigned long telemetryInterval = 500; // 2 Hz
 
     while (true) {
         rc->client.loop();
@@ -47,17 +45,13 @@ void ControllerLink::webSocketTask(void *pvParameters) {
             rc->isAuthenticated && (now - lastTelemetry >= telemetryInterval) &&
             rc->telemetryReady;
 
-        // if (shouldSendTelemetry) {
-        //     lastTelemetry = now;
-        //     if (!rc->telemetryBuffer.isNull()) {
-        //         String telemetry;
-        //         serializeJson(rc->telemetryBuffer, telemetry);
-        //         if (telemetry.length() > 0) {
-        //             DBG("[WSS] Sending telemetry");
-        //             rc->client.sendTXT(telemetry);
-        //         }
-        //     }
-        // }
+        if (shouldSendTelemetry) {
+            lastTelemetry = now;
+            String telemetry;
+            serializeJson(rc->telemetryBuffer, telemetry);
+            DBG("[WSS] Sending telemetry");
+            rc->client.sendTXT(telemetry);
+        }
 
         vTaskDelayUntil(&last, rate);
     }
@@ -65,14 +59,14 @@ void ControllerLink::webSocketTask(void *pvParameters) {
 
 void ControllerLink::beginConnection() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    DBG("Connecting to WiFi");
+    DBGCRT("Connecting to WiFi");
 
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        DBG(".");
+        DBGCRT(".");
     }
-    DBG("\nWiFi Connected\n");
+    DBGCRT("\nWiFi Connected\n");
     delay(500);
 
     client.beginSSL(WEBSOCKET, PORT, URI);
@@ -85,11 +79,11 @@ void ControllerLink::webSocketEvent(WStype_t type, uint8_t *payload,
                                     size_t /*length*/) {
     switch (type) {
     case WStype_DISCONNECTED:
-        DBG("[WSS] Disconnected\n");
+        DBGCRT("[WSS] Disconnected\n");
         onDisconnect();
         break;
     case WStype_CONNECTED:
-        DBG("[WSS] Connected\n");
+        DBGCRT("[WSS] Connected\n");
         break;
     case WStype_TEXT:
         DBG_FMT("[WSS] Got message: %s\n", payload);

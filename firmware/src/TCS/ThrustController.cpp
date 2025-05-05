@@ -71,7 +71,7 @@ void TCS::updateState() {
 }
 
 void TCS::test() {
-    DBG("[TCS] Testing\n");
+    DBGCRT("[TCS] Testing\n");
     arm();
     delay(5000);
     throttle(0, 20);
@@ -96,5 +96,5 @@ void TCS::test() {
     throttle(3, 20);
     delay(1500);
 
-    DBG("[TCS] Testing complete\n");
+    DBGCRT("[TCS] Testing complete\n");
 }

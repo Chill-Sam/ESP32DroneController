@@ -45,5 +45,8 @@ class FCS {
     void failsafe();
     void startLoop();
 
+    bool testing = false;
+
     static void control(void *pvParameters);
+    static void telemetry(void *pvParameters);
 };
