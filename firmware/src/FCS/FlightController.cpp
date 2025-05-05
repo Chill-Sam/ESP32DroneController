@@ -3,6 +3,8 @@
 #include "types/FlightData.h"
 #include "utils/log.h"
 
+#define BASE_SPEED 20
+
 FCS::FCS(int pinA, int pinB, int pinC, int pinD, int minPulseWidth,
          int maxPulsewidth)
     : tcs(pinA, pinB, pinC, pinD, minPulseWidth, maxPulsewidth) {}
@@ -110,13 +112,13 @@ void FCS::control(void *pvParameters) {
 
 void FCS::updateMotorSpeed() {
     // Mixer
-    float tlThrust = altCommand + pitchCommand + rollCommand -
+    float tlThrust = BASE_SPEED + altCommand + pitchCommand + rollCommand -
                      yawCommand; // Front Left  (Motor 1)
-    float trThrust = altCommand + pitchCommand - rollCommand +
+    float trThrust = BASE_SPEED + altCommand + pitchCommand - rollCommand +
                      yawCommand; // Front Right (Motor 0)
-    float blThrust = altCommand - pitchCommand + rollCommand +
+    float blThrust = BASE_SPEED + altCommand - pitchCommand + rollCommand +
                      yawCommand; // Back Left   (Motor 2)
-    float brThrust = altCommand - pitchCommand - rollCommand -
+    float brThrust = BASE_SPEED + altCommand - pitchCommand - rollCommand -
                      yawCommand; // Back Right  (Motor 3)
 
     tcs.throttle(0, blThrust);
